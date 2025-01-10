@@ -1321,6 +1321,8 @@ class WP_SQLite_Driver {
 					return $this->translate_regexp_functions( $ast );
 				}
 				return $this->translate_sequence( $ast->get_children() );
+			case 'runtimeFunctionCall':
+				return $this->translate_runtime_function_call( $ast );
 			case 'systemVariable':
 				// @TODO: Emulate some system variables, or use reasonable defaults.
 				//        See: https://dev.mysql.com/doc/refman/8.4/en/server-system-variable-reference.html
@@ -1439,6 +1441,25 @@ class WP_SQLite_Driver {
 			return 'REGEXP CHAR(0) || ' . $this->translate( $node->get_child_node() );
 		}
 		return 'REGEXP ' . $this->translate( $node->get_child_node() );
+	}
+
+	private function translate_runtime_function_call( WP_Parser_Node $node ): string {
+		$child = $node->get_child();
+		if ( $child instanceof WP_Parser_Node ) {
+			return $this->translate( $child );
+		}
+
+		switch ( $child->id ) {
+			case WP_MySQL_Lexer::LEFT_SYMBOL:
+				$nodes = $node->get_child_nodes();
+				return sprintf(
+					'SUBSTRING(%s, 1, %s)',
+					$this->translate( $nodes[0] ),
+					$this->translate( $nodes[1] )
+				);
+			default:
+				return $this->translate_sequence( $node->get_children() );
+		}
 	}
 
 	private function get_sqlite_create_table_statement( string $table_name, ?string $new_table_name = null ): array {
