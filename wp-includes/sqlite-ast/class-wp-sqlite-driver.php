@@ -1450,6 +1450,22 @@ class WP_SQLite_Driver {
 		}
 
 		switch ( $child->id ) {
+			case WP_MySQL_Lexer::DATE_ADD_SYMBOL:
+			case WP_MySQL_Lexer::DATE_SUB_SYMBOL:
+				$nodes = $node->get_child_nodes();
+				$value = $this->translate( $nodes[1] );
+				$unit  = $this->translate( $nodes[2] );
+				if ( 'WEEK' === $unit ) {
+					$unit  = 'DAY';
+					$value = 7 * $value;
+				}
+				return sprintf(
+					"DATETIME(%s, '%s' || %s || ' %s')",
+					$this->translate( $nodes[0] ),
+					WP_MySQL_Lexer::DATE_SUB_SYMBOL === $child->id ? '-' : '+',
+					$value,
+					$unit
+				);
 			case WP_MySQL_Lexer::LEFT_SYMBOL:
 				$nodes = $node->get_child_nodes();
 				return sprintf(

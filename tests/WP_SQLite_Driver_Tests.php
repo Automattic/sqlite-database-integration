@@ -506,6 +506,94 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		$this->assertEquals( 1, $result[0]->output );
 	}
 
+	public function testDateAddFunction() {
+		// second
+		$result = $this->assertQuery(
+			'SELECT DATE_ADD("2008-01-02 13:29:17", INTERVAL 1 SECOND) as output'
+		);
+		$this->assertEquals( '2008-01-02 13:29:18', $result[0]->output );
+
+		// minute
+		$result = $this->assertQuery(
+			'SELECT DATE_ADD("2008-01-02 13:29:17", INTERVAL 1 MINUTE) as output'
+		);
+		$this->assertEquals( '2008-01-02 13:30:17', $result[0]->output );
+
+		// hour
+		$result = $this->assertQuery(
+			'SELECT DATE_ADD("2008-01-02 13:29:17", INTERVAL 1 HOUR) as output'
+		);
+		$this->assertEquals( '2008-01-02 14:29:17', $result[0]->output );
+
+		// day
+		$result = $this->assertQuery(
+			'SELECT DATE_ADD("2008-01-02 13:29:17", INTERVAL 1 DAY) as output'
+		);
+		$this->assertEquals( '2008-01-03 13:29:17', $result[0]->output );
+
+		// week
+		$result = $this->assertQuery(
+			'SELECT DATE_ADD("2008-01-02 13:29:17", INTERVAL 1 WEEK) as output'
+		);
+		$this->assertEquals( '2008-01-09 13:29:17', $result[0]->output );
+
+		// month
+		$result = $this->assertQuery(
+			'SELECT DATE_ADD("2008-01-02 13:29:17", INTERVAL 1 MONTH) as output'
+		);
+		$this->assertEquals( '2008-02-02 13:29:17', $result[0]->output );
+
+		// year
+		$result = $this->assertQuery(
+			'SELECT DATE_ADD("2008-01-02 13:29:17", INTERVAL 1 YEAR) as output'
+		);
+		$this->assertEquals( '2009-01-02 13:29:17', $result[0]->output );
+	}
+
+	public function testDateSubFunction() {
+		// second
+		$result = $this->assertQuery(
+			'SELECT DATE_SUB("2008-01-02 13:29:17", INTERVAL 1 SECOND) as output'
+		);
+		$this->assertEquals( '2008-01-02 13:29:16', $result[0]->output );
+
+		// minute
+		$result = $this->assertQuery(
+			'SELECT DATE_SUB("2008-01-02 13:29:17", INTERVAL 1 MINUTE) as output'
+		);
+		$this->assertEquals( '2008-01-02 13:28:17', $result[0]->output );
+
+		// hour
+		$result = $this->assertQuery(
+			'SELECT DATE_SUB("2008-01-02 13:29:17", INTERVAL 1 HOUR) as output'
+		);
+		$this->assertEquals( '2008-01-02 12:29:17', $result[0]->output );
+
+		// day
+		$result = $this->assertQuery(
+			'SELECT DATE_SUB("2008-01-02 13:29:17", INTERVAL 1 DAY) as output'
+		);
+		$this->assertEquals( '2008-01-01 13:29:17', $result[0]->output );
+
+		// week
+		$result = $this->assertQuery(
+			'SELECT DATE_SUB("2008-01-02 13:29:17", INTERVAL 1 WEEK) as output'
+		);
+		$this->assertEquals( '2007-12-26 13:29:17', $result[0]->output );
+
+		// month
+		$result = $this->assertQuery(
+			'SELECT DATE_SUB("2008-01-02 13:29:17", INTERVAL 1 MONTH) as output'
+		);
+		$this->assertEquals( '2007-12-02 13:29:17', $result[0]->output );
+
+		// year
+		$result = $this->assertQuery(
+			'SELECT DATE_SUB("2008-01-02 13:29:17", INTERVAL 1 YEAR) as output'
+		);
+		$this->assertEquals( '2007-01-02 13:29:17', $result[0]->output );
+	}
+
 	public function testLeftFunction1Char() {
 		$result = $this->assertQuery(
 			'SELECT LEFT("abc", 1) as output'
