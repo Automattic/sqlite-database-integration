@@ -151,6 +151,51 @@ class WP_SQLite_Driver {
 		'geometrycollection' => 'TEXT',
 	);
 
+	/**
+	 * The MySQL to SQLite date formats translation.
+	 *
+	 * Maps MySQL formats to SQLite strftime() formats.
+	 *
+	 * For MySQL formats, see:
+	 * * https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_date-format
+	 *
+	 * For SQLite formats, see:
+	 * * https://www.sqlite.org/lang_datefunc.html
+	 * * https://strftime.org/
+	 */
+	const DATE_FORMAT_TO_STRFTIME_MAP = array(
+		'%a' => '%D',
+		'%b' => '%M',
+		'%c' => '%n',
+		'%D' => '%jS',
+		'%d' => '%d',
+		'%e' => '%j',
+		'%H' => '%H',
+		'%h' => '%h',
+		'%I' => '%h',
+		'%i' => '%M',
+		'%j' => '%z',
+		'%k' => '%G',
+		'%l' => '%g',
+		'%M' => '%F',
+		'%m' => '%m',
+		'%p' => '%A',
+		'%r' => '%h:%i:%s %A',
+		'%S' => '%s',
+		'%s' => '%s',
+		'%T' => '%H:%i:%s',
+		'%U' => '%W',
+		'%u' => '%W',
+		'%V' => '%W',
+		'%v' => '%W',
+		'%W' => '%l',
+		'%w' => '%w',
+		'%X' => '%Y',
+		'%x' => '%o',
+		'%Y' => '%Y',
+		'%y' => '%y',
+	);
+
 	const DATA_TYPES_CACHE_TABLE = '_mysql_data_types_cache';
 
 	const CREATE_DATA_TYPES_CACHE_TABLE = 'CREATE TABLE IF NOT EXISTS _mysql_data_types_cache (
@@ -1323,6 +1368,8 @@ class WP_SQLite_Driver {
 				return $this->translate_sequence( $ast->get_children() );
 			case 'runtimeFunctionCall':
 				return $this->translate_runtime_function_call( $ast );
+			case 'functionCall':
+				return $this->translate_function_call( $ast );
 			case 'systemVariable':
 				// @TODO: Emulate some system variables, or use reasonable defaults.
 				//        See: https://dev.mysql.com/doc/refman/8.4/en/server-system-variable-reference.html
@@ -1473,6 +1520,59 @@ class WP_SQLite_Driver {
 					$this->translate( $nodes[0] ),
 					$this->translate( $nodes[1] )
 				);
+			default:
+				return $this->translate_sequence( $node->get_children() );
+		}
+	}
+
+	private function translate_function_call( WP_Parser_Node $node ): string {
+		$nodes = $node->get_child_nodes();
+		$name  = strtoupper(
+			$this->unquote_sqlite_identifier( $this->translate( $nodes[0] ) )
+		);
+
+		$args = array();
+		foreach ( $nodes[1]->get_child_nodes() as $child ) {
+			$args[] = $this->translate( $child );
+		}
+
+		switch ( $name ) {
+			case 'DATE_FORMAT':
+				list ( $date, $mysql_format ) = $args;
+
+				$format = strtr( $mysql_format, self::DATE_FORMAT_TO_STRFTIME_MAP );
+				if ( ! $format ) {
+					throw new Exception( "Could not translate a DATE_FORMAT() format to STRFTIME format ($mysql_format)" );
+				}
+
+				/*
+				 * MySQL supports comparing strings and floats, e.g.
+				 *
+				 * > SELECT '00.42' = 0.4200
+				 * 1
+				 *
+				 * SQLite does not support that. At the same time,
+				 * WordPress likes to filter dates by comparing numeric
+				 * outputs of DATE_FORMAT() to floats, e.g.:
+				 *
+				 *     -- Filter by hour and minutes
+				 *     DATE_FORMAT(
+				 *         STR_TO_DATE('2014-10-21 00:42:29', '%Y-%m-%d %H:%i:%s'),
+				 *         '%H.%i'
+				 *     ) = 0.4200;
+				 *
+				 * Let's cast the STRFTIME() output to a float if
+				 * the date format is typically used for string
+				 * to float comparisons.
+				 *
+				 * In the future, let's update WordPress to avoid comparing
+				 * strings and floats.
+				 */
+				$cast_to_float = "'%H.%i'" === $mysql_format;
+				if ( true === $cast_to_float ) {
+					return sprintf( 'CAST(STRFTIME(%s, %s) AS FLOAT)', $format, $date );
+				}
+				return sprintf( 'STRFTIME(%s, %s)', $format, $date );
 			default:
 				return $this->translate_sequence( $node->get_children() );
 		}
