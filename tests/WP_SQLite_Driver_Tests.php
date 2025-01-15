@@ -3467,7 +3467,7 @@ QUERY
 		$this->assertEquals(
 			array(
 				(object) array(
-					':param0' => 'T',
+					"'T'" => 'T',
 				),
 			),
 			$result

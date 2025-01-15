@@ -1380,6 +1380,22 @@ class WP_SQLite_Driver {
 
 		$rule_name = $ast->rule_name;
 		switch ( $rule_name ) {
+			case 'querySpecification':
+				// Translate "HAVING ..." without "GROUP BY ..." to "GROUP BY 1 HAVING ...".
+				if ( $ast->has_child_node( 'havingClause' ) && ! $ast->has_child_node( 'groupByClause' ) ) {
+					$parts = array();
+					foreach ( $ast->get_children() as $child ) {
+						if ( $child instanceof WP_Parser_Node && 'havingClause' === $child->rule_name ) {
+							$parts[] = 'GROUP BY 1';
+						}
+						$part = $this->translate( $child );
+						if ( null !== $part ) {
+							$parts[] = $part;
+						}
+					}
+					return implode( ' ', $parts );
+				}
+				return $this->translate_sequence( $ast->get_children() );
 			case 'qualifiedIdentifier':
 			case 'dotIdentifier':
 				return $this->translate_sequence( $ast->get_children(), '' );
