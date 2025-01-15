@@ -1454,6 +1454,12 @@ class WP_SQLite_Driver {
 
 				// When we have no value, it's reasonable to use NULL.
 				return 'NULL';
+			case 'castType':
+				// Translate "CAST(... AS BINARY)" to "CAST(... AS BLOB)".
+				if ( $ast->has_child_token( WP_MySQL_Lexer::BINARY_SYMBOL ) ) {
+					return 'BLOB';
+				}
+				return $this->translate_sequence( $ast->get_children() );
 			case 'defaultCollation':
 				// @TODO: Check and save in information schema.
 				return null;
