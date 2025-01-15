@@ -313,6 +313,20 @@ class WP_SQLite_Driver {
 	private $last_insert_id;
 
 	/**
+	 * Number of rows found by the last SELECT query.
+	 *
+	 * @var int
+	 */
+	private $last_select_found_rows;
+
+	/**
+	 * Number of rows found by the last SQL_CALC_FOUND_ROW query.
+	 *
+	 * @var int integer
+	 */
+	private $last_sql_calc_found_rows = null;
+
+	/**
 	 * Class variable to store the number of rows affected.
 	 *
 	 * @var int integer
@@ -888,11 +902,7 @@ class WP_SQLite_Driver {
 		switch ( $ast->rule_name ) {
 			case 'selectStatement':
 				$this->query_type = 'SELECT';
-				$query            = $this->translate( $ast->get_child() );
-				$stmt             = $this->execute_sqlite_query( $query );
-				$this->set_results_from_fetched_data(
-					$stmt->fetchAll( $this->pdo_fetch_mode )
-				);
+				$this->execute_select_statement( $ast );
 				break;
 			case 'insertStatement':
 			case 'updateStatement':
@@ -982,6 +992,66 @@ class WP_SQLite_Driver {
 			default:
 				throw new Exception( sprintf( 'Unsupported statement type: "%s"', $ast->rule_name ) );
 		}
+	}
+
+	private function execute_select_statement( WP_Parser_Node $node ): void {
+		$has_sql_calc_found_rows = null !== $node->get_descendant_token(
+			WP_MySQL_Lexer::SQL_CALC_FOUND_ROWS_SYMBOL
+		);
+
+		// First, translate the query, before we modify last found rows count.
+		$query = $this->translate( $node->get_child() );
+
+		// Handle SQL_CALC_FOUND_ROWS.
+		if ( true === $has_sql_calc_found_rows ) {
+			// Recursively find a query expression with the first LIMIT or SELECT.
+			$query_expr = $node->get_descendant_node( 'queryExpression' );
+			while ( true ) {
+				if ( $query_expr->has_child_node( 'limitClause' ) ) {
+					break;
+				}
+
+				$query_expr_parens = $query_expr->get_child_node( 'queryExpressionParens' );
+				if ( null !== $query_expr_parens ) {
+					$query_expr = $query_expr_parens->get_child_node( 'queryExpression' );
+					continue;
+				}
+
+				$query_expr_body = $query_expr->get_child_node( 'queryExpressionBody' );
+				if ( count( $query_expr_body->get_children() ) > 1 ) {
+					break;
+				}
+
+				$query_term = $query_expr_body->get_child_node( 'queryTerm' );
+				if (
+					count( $query_term->get_children() ) === 1
+					&& $query_term->has_child_node( 'queryExpressionParens' )
+				) {
+					$query_expr = $query_term->get_child_node( 'queryExpressionParens' )->get_child_node( 'queryExpression' );
+					continue;
+				}
+
+				break;
+			}
+
+			$count_expr = new WP_Parser_Node( $query_expr->rule_id, $query_expr->rule_name );
+			foreach ( $query_expr->get_children() as $child ) {
+				if ( ! ( $child instanceof WP_Parser_Node && 'limitClause' === $child->rule_name ) ) {
+					$count_expr->append_child( $child );
+				}
+			}
+
+			$result                         = $this->execute_sqlite_query( 'SELECT COUNT(*) AS cnt FROM (' . $this->translate( $count_expr ) . ')' );
+			$this->last_sql_calc_found_rows = $result->fetchColumn();
+		} else {
+			$this->last_sql_calc_found_rows = null;
+		}
+
+		// Execute the query.
+		$stmt = $this->execute_sqlite_query( $query );
+		$this->set_results_from_fetched_data(
+			$stmt->fetchAll( $this->pdo_fetch_mode )
+		);
 	}
 
 	private function execute_update_statement( WP_Parser_Node $node ): void {
@@ -1410,6 +1480,12 @@ class WP_SQLite_Driver {
 				 * and then remove it from the translated output here.
 				 */
 				return null;
+			case WP_MySQL_Lexer::SQL_CALC_FOUND_ROWS_SYMBOL:
+				/*
+				 * The "SQL_CALC_FOUND_ROWS" keyword is implemented in the select
+				 * statement translation and then removed from the output here.
+				 */
+				return null;
 			default:
 				return $token->value;
 		}
@@ -1532,8 +1608,10 @@ class WP_SQLite_Driver {
 		);
 
 		$args = array();
-		foreach ( $nodes[1]->get_child_nodes() as $child ) {
-			$args[] = $this->translate( $child );
+		if ( isset( $nodes[1] ) ) {
+			foreach ( $nodes[1]->get_child_nodes() as $child ) {
+				$args[] = $this->translate( $child );
+			}
 		}
 
 		switch ( $name ) {
@@ -1573,6 +1651,15 @@ class WP_SQLite_Driver {
 					return sprintf( 'CAST(STRFTIME(%s, %s) AS FLOAT)', $format, $date );
 				}
 				return sprintf( 'STRFTIME(%s, %s)', $format, $date );
+			case 'FOUND_ROWS':
+				// @TODO: The following implementation with an alias assumes
+				//        that the function is used in the SELECT field list.
+				//        For compatibility with more complex use cases, it may
+				//        be better to register it as a custom SQLite function.
+				return sprintf(
+					"(SELECT %d) AS 'FOUND_ROWS()'",
+					$this->last_sql_calc_found_rows ?? $this->last_select_found_rows
+				);
 			default:
 				return $this->translate_sequence( $node->get_children() );
 		}

@@ -2819,17 +2819,37 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		$this->assertNotFalse( $result );
 
 		$result = $this->assertQuery(
-			"INSERT INTO wptests_dummy (user_login) VALUES ('test');"
+			"INSERT INTO wptests_dummy (user_login) VALUES ('test1');"
 		);
 		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertEquals( 1, $result );
 
 		$result = $this->assertQuery(
-			'SELECT SQL_CALC_FOUND_ROWS * FROM wptests_dummy'
+			"INSERT INTO wptests_dummy (user_login) VALUES ('test2');"
+		);
+		$this->assertEquals( '', $this->engine->get_error_message() );
+		$this->assertEquals( 1, $result );
+
+		$result = $this->assertQuery(
+			'SELECT SQL_CALC_FOUND_ROWS * FROM wptests_dummy ORDER BY ID LIMIT 1'
 		);
 		$this->assertNotFalse( $result );
+		$this->assertCount( 1, $result );
 		$this->assertEquals( '', $this->engine->get_error_message() );
-		$this->assertEquals( 'test', $result[0]->user_login );
+		$this->assertEquals( 'test1', $result[0]->user_login );
+
+		$result = $this->assertQuery(
+			'SELECT FOUND_ROWS()'
+		);
+		$this->assertEquals( '', $this->engine->get_error_message() );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'FOUND_ROWS()' => '2',
+				),
+			),
+			$result
+		);
 	}
 
 	public function testComplexSelectBasedOnDates() {
