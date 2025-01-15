@@ -3404,7 +3404,7 @@ QUERY
 		$this->assertRegExp( '/\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d/', $results[0]->t );
 
 		// UPDATE
-		$this->assertQuery( 'UPDATE _dates SET option_value = NULL' );
+		$this->assertQuery( "UPDATE _dates SET option_value = ''" );
 		$results = $this->assertQuery( 'SELECT option_value AS t FROM _dates' );
 		$this->assertCount( 1, $results );
 		$this->assertEmpty( $results[0]->t );

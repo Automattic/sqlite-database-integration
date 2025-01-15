@@ -1586,6 +1586,14 @@ class WP_SQLite_Driver {
 		}
 
 		switch ( $child->id ) {
+			case WP_MySQL_Lexer::CURRENT_TIMESTAMP_SYMBOL:
+			case WP_MySQL_Lexer::NOW_SYMBOL:
+				/*
+				 * 1) SQLite doesn't support CURRENT_TIMESTAMP() with parentheses.
+				 * 2) In MySQL, CURRENT_TIMESTAMP and CURRENT_TIMESTAMP() are an
+				 *    alias of NOW(). In SQLite, there is no NOW() function.
+				 */
+				return 'CURRENT_TIMESTAMP';
 			case WP_MySQL_Lexer::DATE_ADD_SYMBOL:
 			case WP_MySQL_Lexer::DATE_SUB_SYMBOL:
 				$nodes = $node->get_child_nodes();
