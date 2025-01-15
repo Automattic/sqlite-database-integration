@@ -1428,6 +1428,13 @@ class WP_SQLite_Driver {
 				throw $this->not_supported_exception(
 					sprintf( 'data type: %s', $child->value )
 				);
+			case 'fromClause':
+				// FROM DUAL is MySQL-specific syntax that means "FROM no tables"
+				// and it is equivalent to omitting the FROM clause entirely.
+				if ( $ast->has_child_token( WP_MySQL_Lexer::DUAL_SYMBOL ) ) {
+					return null;
+				}
+				return $this->translate_sequence( $ast->get_children() );
 			case 'predicateOperations':
 				$token = $ast->get_child_token();
 				if ( WP_MySQL_Lexer::LIKE_SYMBOL === $token->id ) {
