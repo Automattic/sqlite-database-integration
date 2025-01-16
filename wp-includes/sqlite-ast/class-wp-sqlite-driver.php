@@ -957,9 +957,16 @@ class WP_SQLite_Driver {
 				break;
 			case 'dropStatement':
 				$this->query_type = 'DROP';
-				$query            = $this->translate( $ast );
-				$this->execute_sqlite_query( $query );
-				$this->set_result_from_affected_rows();
+				$subtree          = $ast->get_child_node();
+				switch ( $subtree->rule_name ) {
+					case 'dropTable':
+						$this->execute_drop_table_statement( $ast );
+						break;
+					default:
+						$query = $this->translate( $ast );
+						$this->execute_sqlite_query( $query );
+						$this->set_result_from_affected_rows();
+				}
 				break;
 			case 'setStatement':
 				/*
@@ -1101,8 +1108,9 @@ class WP_SQLite_Driver {
 	}
 
 	private function execute_create_table_statement( WP_Parser_Node $node ): void {
+		$is_temporary = $node->get_child_node()->has_child_token( WP_MySQL_Lexer::TEMPORARY_SYMBOL );
 		$element_list = $node->get_descendant_node( 'tableElementList' );
-		if ( null === $element_list ) {
+		if ( true === $is_temporary || null === $element_list ) {
 			$query = $this->translate( $node );
 			$this->execute_sqlite_query( $query );
 			$this->set_result_from_affected_rows();
@@ -1261,6 +1269,46 @@ class WP_SQLite_Driver {
 		 *
 		 *    @TODO: Address these nuances.
 		 */
+	}
+
+	private function execute_drop_table_statement( WP_Parser_Node $node ): void {
+		$child_node = $node->get_child_node();
+
+		// MySQL supports removing multiple tables in a single query DROP query.
+		// In SQLite, we need to execute each DROP TABLE statement separately.
+		$table_refs   = $child_node->get_child_node( 'tableRefList' )->get_child_nodes();
+		$is_temporary = $child_node->has_child_token( WP_MySQL_Lexer::TEMPORARY_SYMBOL );
+		$queries      = array();
+		foreach ( $table_refs as $table_ref ) {
+			$parts = array();
+			foreach ( $child_node->get_children() as $child ) {
+				$is_token = $child instanceof WP_MySQL_Token;
+
+				// Skip the TEMPORARY keyword.
+				if ( $is_token && WP_MySQL_Lexer::TEMPORARY_SYMBOL === $child->id ) {
+					continue;
+				}
+
+				// Replace table list with the current table reference.
+				if ( ! $is_token && 'tableRefList' === $child->rule_name ) {
+					// Add a "temp." schema prefix for temporary tables.
+					$prefix = $is_temporary ? '"temp".' : '';
+					$part   = $prefix . $this->translate( $table_ref );
+				} else {
+					$part = $this->translate( $child );
+				}
+
+				if ( null !== $part ) {
+					$parts[] = $part;
+				}
+			}
+			$queries[] = 'DROP ' . implode( ' ', $parts );
+		}
+
+		foreach ( $queries as $query ) {
+			$this->execute_sqlite_query( $query );
+		}
+		$this->results = $this->last_exec_returned;
 	}
 
 	private function execute_show_statement( WP_Parser_Node $node ): void {
