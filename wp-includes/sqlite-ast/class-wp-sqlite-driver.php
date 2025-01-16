@@ -905,6 +905,8 @@ class WP_SQLite_Driver {
 				$this->execute_select_statement( $ast );
 				break;
 			case 'insertStatement':
+				$this->execute_insert_statement( $ast );
+				break;
 			case 'updateStatement':
 				$this->execute_update_statement( $ast );
 				break;
@@ -1061,6 +1063,20 @@ class WP_SQLite_Driver {
 		);
 	}
 
+	private function execute_insert_statement( WP_Parser_Node $node ): void {
+		$parts = array();
+		foreach ( $node->get_children() as $child ) {
+			if ( $child instanceof WP_MySQL_Token && WP_MySQL_Lexer::IGNORE_SYMBOL === $child->id ) {
+				$parts[] = 'OR IGNORE';
+			} else {
+				$parts[] = $this->translate( $child );
+			}
+		}
+		$query = implode( ' ', $parts );
+		$this->execute_sqlite_query( $query );
+		$this->set_result_from_affected_rows();
+	}
+
 	private function execute_update_statement( WP_Parser_Node $node ): void {
 		// @TODO: Add support for UPDATE with multiple tables and JOINs.
 		//        SQLite supports them in the FROM clause.
@@ -1077,8 +1093,9 @@ class WP_SQLite_Driver {
 		 * Will be rewritten to:
 		 *   UPDATE t SET c = 1 WHERE rowid IN ( SELECT rowid FROM t WHERE c = 2 LIMIT 1 );
 		 */
+		$where_subquery = null;
 		if ( $has_order || $has_limit ) {
-			$subquery = 'SELECT rowid FROM ' . $this->translate_sequence(
+			$where_subquery = 'SELECT rowid FROM ' . $this->translate_sequence(
 				array(
 					$node->get_descendant_node( 'tableReference' ),
 					$node->get_descendant_node( 'whereClause' ),
@@ -1086,23 +1103,31 @@ class WP_SQLite_Driver {
 					$node->get_descendant_node( 'simpleLimitClause' ),
 				)
 			);
-
-			$update_nodes = array();
-			foreach ( $node->get_children() as $child ) {
-				$update_nodes[] = $child;
-				if (
-					$child instanceof WP_Parser_Node
-					&& 'updateList' === $child->rule_name
-				) {
-					// Skip WHERE, ORDER BY, and LIMIT.
-					break;
-				}
-			}
-			$query = $this->translate_sequence( $update_nodes )
-				. ' WHERE rowid IN ( ' . $subquery . ' )';
-		} else {
-			$query = $this->translate( $node );
 		}
+
+		$parts = array();
+		foreach ( $node->get_children() as $child ) {
+			if ( $child instanceof WP_MySQL_Token && WP_MySQL_Lexer::IGNORE_SYMBOL === $child->id ) {
+				$parts[] = 'OR IGNORE';
+			} else {
+				$parts[] = $this->translate( $child );
+			}
+
+			if (
+				null !== $where_subquery
+				&& $child instanceof WP_Parser_Node
+				&& 'updateList' === $child->rule_name
+			) {
+				// Skip WHERE, ORDER BY, and LIMIT.
+				break;
+			}
+		}
+
+		$query = implode( ' ', $parts );
+		if ( null !== $where_subquery ) {
+			$query .= ' WHERE rowid IN ( ' . $where_subquery . ' )';
+		}
+
 		$this->execute_sqlite_query( $query );
 		$this->set_result_from_affected_rows();
 	}
