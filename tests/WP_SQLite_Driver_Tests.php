@@ -2062,9 +2062,9 @@ class WP_SQLite_Driver_Tests extends TestCase {
 			);"
 		);
 
-		// $result1 = $this->assertQuery( "INSERT INTO _tmp_table (name) VALUES ('first');" );
-		// $this->assertEquals( '', $this->engine->get_error_message() );
-		// $this->assertEquals( 1, $result1 );
+		$result1 = $this->assertQuery( "INSERT INTO _tmp_table (name) VALUES ('first');" );
+		$this->assertEquals( '', $this->engine->get_error_message() );
+		$this->assertEquals( 1, $result1 );
 
 		$result2 = $this->assertQuery( "INSERT INTO _tmp_table (name) VALUES ('FIRST') ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);" );
 		$this->assertEquals( 1, $result2 );
@@ -2452,7 +2452,7 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		$result1 = $this->assertQuery( "INSERT INTO _tmp_table (name) VALUES ('first');" );
 		$this->assertEquals( 1, $result1 );
 
-		$result2 = $this->assertQuery( "INSERT INTO _tmp_table (name) VALUES ('FIRST') ON DUPLICATE KEY SET name=VALUES(`name`);" );
+		$result2 = $this->assertQuery( "INSERT INTO _tmp_table (name) VALUES ('FIRST') ON DUPLICATE KEY UPDATE name=VALUES(`name`);" );
 		$this->assertEquals( 1, $result2 );
 
 		$this->assertQuery( 'SELECT COUNT(*) as cnt FROM _tmp_table' );
@@ -2775,7 +2775,7 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertEquals( 2, $result1 );
 
-		$result2 = $this->assertQuery( 'INSERT INTO wptests_term_relationships VALUES (1,2,2),(1,3,1) ON DUPLICATE KEY SET term_order = VALUES(term_order);' );
+		$result2 = $this->assertQuery( 'INSERT INTO wptests_term_relationships VALUES (1,2,2),(1,3,1) ON DUPLICATE KEY UPDATE term_order = VALUES(term_order);' );
 		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertEquals( 2, $result2 );
 
@@ -3267,21 +3267,20 @@ QUERY
 		$this->assertCount( 2, $result ); // Should match both 'first' and 'FIRST'
 	}
 
-	public function testOnConflictReplace() {
+	public function testUniqueConstraints() {
 		$this->assertQuery(
 			"CREATE TABLE _tmp_table (
 				ID INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL,
 				name varchar(20) NOT NULL default 'default-value',
 				unique_name varchar(20) NOT NULL default 'unique-default-value',
-				inline_unique_name varchar(20) NOT NULL default 'inline-unique-default-value',
-				no_default varchar(20) NOT NULL,
-				UNIQUE KEY unique_name (unique_name)
+				inline_unique_name varchar(30) NOT NULL default 'inline-unique-default-value' UNIQUE,
+				UNIQUE KEY unique_name (unique_name),
+				UNIQUE KEY compound_name (name, unique_name)
 			);"
 		);
 
-		$this->assertQuery(
-			"INSERT INTO _tmp_table VALUES (1, null, null, null, '');"
-		);
+		// Insert a row with default values.
+		$this->assertQuery( 'INSERT INTO _tmp_table (ID) VALUES (1)' );
 		$result = $this->assertQuery( 'SELECT * FROM _tmp_table WHERE ID = 1' );
 		$this->assertEquals(
 			array(
@@ -3290,45 +3289,47 @@ QUERY
 					'name'               => 'default-value',
 					'unique_name'        => 'unique-default-value',
 					'inline_unique_name' => 'inline-unique-default-value',
-					'no_default'         => '',
 				),
 			),
 			$result
 		);
 
+		// Insert another row.
 		$this->assertQuery(
-			"INSERT INTO _tmp_table VALUES (2, '1', '2', '3', '4');"
-		);
-		$this->assertQuery(
-			'UPDATE _tmp_table SET name = null WHERE ID = 2;'
+			"INSERT INTO _tmp_table VALUES (2, 'ANOTHER-VALUE', 'ANOTHER-UNIQUE-VALUE', 'ANOTHER-INLINE-UNIQUE-VALUE')"
 		);
 
-		$result = $this->assertQuery( 'SELECT name FROM _tmp_table WHERE ID = 2' );
-		$this->assertEquals(
-			array(
-				(object) array(
-					'name' => 'default-value',
-				),
-			),
-			$result
-		);
-
-		// This should fail because of the UNIQUE constraint
+		// This should fail because of the UNIQUE constraints.
 		$this->assertQuery(
-			'UPDATE _tmp_table SET unique_name = NULL WHERE ID = 2;',
+			"UPDATE _tmp_table SET unique_name = 'unique-default-value' WHERE ID = 2",
 			'UNIQUE constraint failed: _tmp_table.unique_name'
 		);
 
-		// Inline unique constraint aren't supported currently, so this should pass
 		$this->assertQuery(
-			'UPDATE _tmp_table SET inline_unique_name = NULL WHERE ID = 2;',
-			''
+			"UPDATE _tmp_table SET inline_unique_name = 'inline-unique-default-value' WHERE ID = 2",
+			'UNIQUE constraint failed: _tmp_table.inline_unique_name'
 		);
 
-		// WPDB allows for NULL values in columns that don't have a default value and a NOT NULL constraint
+		// Updating "name" to the same value as the first row should pass.
 		$this->assertQuery(
-			'UPDATE _tmp_table SET no_default = NULL WHERE ID = 2;',
-			''
+			"UPDATE _tmp_table SET name = 'default-value' WHERE ID = 2"
+		);
+		$this->assertEquals(
+			array(
+				(object) array(
+					'ID'                 => '2',
+					'name'               => 'default-value',
+					'unique_name'        => 'ANOTHER-UNIQUE-VALUE',
+					'inline_unique_name' => 'ANOTHER-INLINE-UNIQUE-VALUE',
+				),
+			),
+			$this->assertQuery( 'SELECT * FROM _tmp_table WHERE ID = 2' )
+		);
+
+		// Updating also "unique_name" should fail on the compound UNIQUE key.
+		$this->assertQuery(
+			"UPDATE _tmp_table SET inline_unique_name = 'inline-unique-default-value' WHERE ID = 2",
+			'UNIQUE constraint failed: _tmp_table.inline_unique_name'
 		);
 
 		$result = $this->assertQuery( 'SELECT * FROM _tmp_table WHERE ID = 2' );
@@ -3337,9 +3338,8 @@ QUERY
 				(object) array(
 					'ID'                 => '2',
 					'name'               => 'default-value',
-					'unique_name'        => '2',
-					'inline_unique_name' => 'inline-unique-default-value',
-					'no_default'         => '',
+					'unique_name'        => 'ANOTHER-UNIQUE-VALUE',
+					'inline_unique_name' => 'ANOTHER-INLINE-UNIQUE-VALUE',
 				),
 			),
 			$result

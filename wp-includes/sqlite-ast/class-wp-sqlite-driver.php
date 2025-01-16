@@ -1513,6 +1513,14 @@ class WP_SQLite_Driver {
 					return null;
 				}
 				return $this->translate_sequence( $ast->get_children() );
+			case 'insertUpdateList':
+				// Translate "ON DUPLICATE KEY UPDATE" to "ON CONFLICT DO UPDATE SET".
+				return sprintf(
+					'ON CONFLICT DO UPDATE SET %s',
+					$this->translate( $ast->get_child_node( 'updateList' ) )
+				);
+			case 'simpleExpr':
+				return $this->translate_simple_expr( $ast );
 			case 'predicateOperations':
 				$token = $ast->get_child_token();
 				if ( WP_MySQL_Lexer::LIKE_SYMBOL === $token->id ) {
@@ -1599,6 +1607,20 @@ class WP_SQLite_Driver {
 			return null;
 		}
 		return implode( $separator, $parts );
+	}
+
+	private function translate_simple_expr( WP_Parser_Node $node ): string {
+		$token = $node->get_child_token();
+
+		// Translate "VALUES(col)" to "excluded.col" in ON DUPLICATE KEY UPDATE.
+		if ( null !== $token && WP_MySQL_Lexer::VALUES_SYMBOL === $token->id ) {
+			return sprintf(
+				'"excluded".%s',
+				$this->translate( $node->get_child_node( 'simpleIdentifier' ) )
+			);
+		}
+
+		return $this->translate_sequence( $node->get_children() );
 	}
 
 	private function translate_like( WP_Parser_Node $node ): string {
@@ -1893,6 +1915,13 @@ class WP_SQLite_Driver {
 			}
 
 			$sql .= ' ' . $type;
+
+			// In MySQL, text fields are case-insensitive by default.
+			// COLLATE NOCASE emulates the same behavior in SQLite.
+			// @TODO: Respect the actual column and index collation.
+			if ( 'TEXT' === $type ) {
+				$sql .= ' COLLATE NOCASE';
+			}
 			if ( 'NO' === $column['IS_NULLABLE'] ) {
 				$sql .= ' NOT NULL';
 			}
