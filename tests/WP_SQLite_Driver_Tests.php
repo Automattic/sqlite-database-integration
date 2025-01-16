@@ -769,10 +769,52 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		);
 
 		$this->assertQuery(
+			"CREATE TABLE _another_table (
+				ID INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL,
+				option_name TEXT NOT NULL default '',
+				option_value TEXT NOT NULL default ''
+			);"
+		);
+
+		$this->assertQuery(
 			"SHOW TABLE STATUS LIKE '_tmp_table%';"
 		);
 		$this->assertCount(
 			2,
+			$this->engine->get_query_results()
+		);
+		$this->assertEquals(
+			'_tmp_table1',
+			$this->engine->get_query_results()[0]->Name
+		);
+	}
+
+	public function testShowTableStatusWhere() {
+		// Created in setUp() function
+		$this->assertQuery( 'DROP TABLE _options' );
+		$this->assertQuery( 'DROP TABLE _dates' );
+
+		$this->assertQuery(
+			"CREATE TABLE _tmp_table1 (
+				ID INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL,
+				option_name TEXT NOT NULL default '',
+				option_value TEXT NOT NULL default ''
+			);"
+		);
+
+		$this->assertQuery(
+			"CREATE TABLE _tmp_table2 (
+				ID INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL,
+				option_name TEXT NOT NULL default '',
+				option_value TEXT NOT NULL default ''
+			);"
+		);
+
+		$this->assertQuery(
+			"SHOW TABLE STATUS WHERE SUBSTR(table_name, 11, 1) = '1'"
+		);
+		$this->assertCount(
+			1,
 			$this->engine->get_query_results()
 		);
 		$this->assertEquals(

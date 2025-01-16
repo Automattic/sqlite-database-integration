@@ -1334,6 +1334,7 @@ class WP_SQLite_Driver {
 			$this->execute_sqlite_query( $query );
 		}
 		$this->results = $this->last_exec_returned;
+		$this->information_schema_builder->record_drop_table( $node );
 	}
 
 	private function execute_show_statement( WP_Parser_Node $node ): void {
@@ -1380,6 +1381,9 @@ class WP_SQLite_Driver {
 					)
 				);
 				return;
+			case WP_MySQL_Lexer::TABLE_SYMBOL:
+				$this->execute_show_table_status_statement( $node );
+				break;
 			default:
 				// @TODO
 		}
@@ -1412,6 +1416,58 @@ class WP_SQLite_Driver {
 		)->fetchAll( PDO::FETCH_OBJ );
 
 		$this->set_results_from_fetched_data( $index_info );
+	}
+
+	private function execute_show_table_status_statement( WP_Parser_Node $node ): void {
+		// FROM/IN database.
+		$in_db    = $node->get_child_node( 'idDb' );
+		$database = null === $in_db ? $this->db_name : $this->translate( $in_db );
+
+		// LIKE and WHERE clauses.
+		$like_or_where = $node->get_child_node( 'likeOrWhere' );
+		if ( null !== $like_or_where ) {
+			$condition = $this->get_show_like_or_where_condition( $like_or_where );
+		}
+
+		// Fetch table information.
+		$table_info = $this->execute_sqlite_query(
+			sprintf(
+				'SELECT * FROM _mysql_information_schema_tables WHERE table_schema = ? %s',
+				$condition ?? ''
+			),
+			array( $database )
+		)->fetchAll( PDO::FETCH_ASSOC );
+
+		if ( false === $table_info ) {
+			$this->set_results_from_fetched_data( array() );
+		}
+
+		// Format the results.
+		$tables = array();
+		foreach ( $table_info as $value ) {
+			$tables[] = (object) array(
+				'Name'            => $value['TABLE_NAME'],
+				'Engine'          => $value['ENGINE'],
+				'Version'         => $value['VERSION'],
+				'Row_format'      => $value['ROW_FORMAT'],
+				'Rows'            => $value['TABLE_ROWS'],
+				'Avg_row_length'  => $value['AVG_ROW_LENGTH'],
+				'Data_length'     => $value['DATA_LENGTH'],
+				'Max_data_length' => $value['MAX_DATA_LENGTH'],
+				'Index_length'    => $value['INDEX_LENGTH'],
+				'Data_free'       => $value['DATA_FREE'],
+				'Auto_increment'  => $value['AUTO_INCREMENT'],
+				'Create_time'     => $value['CREATE_TIME'],
+				'Update_time'     => $value['UPDATE_TIME'],
+				'Check_time'      => $value['CHECK_TIME'],
+				'Collation'       => $value['TABLE_COLLATION'],
+				'Checksum'        => $value['CHECKSUM'],
+				'Create_options'  => $value['CREATE_OPTIONS'],
+				'Comment'         => $value['TABLE_COMMENT'],
+			);
+		}
+
+		$this->set_results_from_fetched_data( $tables );
 	}
 
 	private function execute_describe_statement( WP_Parser_Node $node ): void {
@@ -2123,6 +2179,26 @@ class WP_SQLite_Driver {
 		$sql      .= sprintf( ' DEFAULT CHARSET=%s', $charset );
 		$sql      .= sprintf( ' COLLATE=%s', $collation );
 		return $sql;
+	}
+
+	private function get_show_like_or_where_condition( WP_Parser_Node $like_or_where ): string {
+		$like_clause = $like_or_where->get_child_node( 'likeClause' );
+		if ( null !== $like_clause ) {
+			$value = $this->translate(
+				$like_clause->get_child_node( 'textStringLiteral' )
+			);
+			return sprintf( "AND table_name LIKE %s ESCAPE '\\'", $value );
+		}
+
+		$where_clause = $like_or_where->get_child_node( 'whereClause' );
+		if ( null !== $where_clause ) {
+			$value = $this->translate(
+				$where_clause->get_child_node( 'expr' )
+			);
+			return sprintf( 'AND %s', $value );
+		}
+
+		return '';
 	}
 
 	private function unquote_sqlite_identifier( string $quoted_identifier ): string {
