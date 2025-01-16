@@ -505,6 +505,41 @@ class WP_SQLite_Information_Schema_Builder {
 		}
 	}
 
+	public function record_drop_table( WP_Parser_Node $node ): void {
+		$child_node = $node->get_child_node();
+		if ( $child_node->has_child_token( WP_MySQL_Lexer::TEMPORARY_SYMBOL ) ) {
+			return;
+		}
+
+		$table_refs = $child_node->get_child_node( 'tableRefList' )->get_child_nodes();
+		foreach ( $table_refs as $table_ref ) {
+			$table_name = $this->get_value( $table_ref );
+			$this->delete_values(
+				'_mysql_information_schema_tables',
+				array(
+					'table_schema' => $this->db_name,
+					'table_name'   => $table_name,
+				)
+			);
+			$this->delete_values(
+				'_mysql_information_schema_columns',
+				array(
+					'table_schema' => $this->db_name,
+					'table_name'   => $table_name,
+				)
+			);
+			$this->delete_values(
+				'_mysql_information_schema_statistics',
+				array(
+					'table_schema' => $this->db_name,
+					'table_name'   => $table_name,
+				)
+			);
+		}
+
+		// @TODO: RESTRICT vs. CASCADE
+	}
+
 	private function record_add_column( string $table_name, string $column_name, WP_Parser_Node $node ): void {
 		$position = $this->query(
 			'SELECT MAX(ordinal_position) FROM _mysql_information_schema_columns WHERE table_name = ?',
