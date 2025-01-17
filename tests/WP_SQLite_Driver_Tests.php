@@ -664,7 +664,20 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		$this->assertEquals(
 			array(
 				(object) array(
-					'Tables_in_db' => '_tmp_table',
+					'Tables_in_wp' => '_tmp_table',
+				),
+			),
+			$this->engine->get_query_results()
+		);
+
+		$this->assertQuery(
+			"SHOW FULL TABLES LIKE '_tmp_table';"
+		);
+		$this->assertEquals(
+			array(
+				(object) array(
+					'Tables_in_wp' => '_tmp_table',
+					'Table_type'   => 'BASE TABLE',
 				),
 			),
 			$this->engine->get_query_results()

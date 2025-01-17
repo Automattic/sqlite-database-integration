@@ -1384,6 +1384,9 @@ class WP_SQLite_Driver {
 			case WP_MySQL_Lexer::TABLE_SYMBOL:
 				$this->execute_show_table_status_statement( $node );
 				break;
+			case WP_MySQL_Lexer::TABLES_SYMBOL:
+				$this->execute_show_tables_statement( $node );
+				break;
 			default:
 				// @TODO
 		}
@@ -1465,6 +1468,49 @@ class WP_SQLite_Driver {
 				'Create_options'  => $value['CREATE_OPTIONS'],
 				'Comment'         => $value['TABLE_COMMENT'],
 			);
+		}
+
+		$this->set_results_from_fetched_data( $tables );
+	}
+
+	private function execute_show_tables_statement( WP_Parser_Node $node ): void {
+		// FROM/IN database.
+		$in_db    = $node->get_child_node( 'idDb' );
+		$database = null === $in_db ? $this->db_name : $this->translate( $in_db );
+
+		// LIKE and WHERE clauses.
+		$like_or_where = $node->get_child_node( 'likeOrWhere' );
+		if ( null !== $like_or_where ) {
+			$condition = $this->get_show_like_or_where_condition( $like_or_where );
+		}
+
+		// Fetch table information.
+		$table_info = $this->execute_sqlite_query(
+			sprintf(
+				'SELECT * FROM _mysql_information_schema_tables WHERE table_schema = ? %s',
+				$condition ?? ''
+			),
+			array( $database )
+		)->fetchAll( PDO::FETCH_ASSOC );
+
+		if ( false === $table_info ) {
+			$this->set_results_from_fetched_data( array() );
+		}
+
+		// Handle the FULL keyword.
+		$command_type = $node->get_child_node( 'showCommandType' );
+		$is_full      = $command_type && $command_type->has_child_token( WP_MySQL_Lexer::FULL_SYMBOL );
+
+		// Format the results.
+		$tables = array();
+		foreach ( $table_info as $value ) {
+			$table = array(
+				"Tables_in_$database" => $value['TABLE_NAME'],
+			);
+			if ( true === $is_full ) {
+				$table['Table_type'] = $value['TABLE_TYPE'];
+			}
+			$tables[] = (object) $table;
 		}
 
 		$this->set_results_from_fetched_data( $tables );
