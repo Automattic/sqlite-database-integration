@@ -683,15 +683,7 @@ class WP_SQLite_Information_Schema_Builder {
 			$column_info
 		);
 
-		// Get first index column data type (needed for index type).
-		$first_column_name  = $column_info[0]['COLUMN_NAME'];
-		$first_column_type  = $column_info_map[ $first_column_name ]['DATA_TYPE'] ?? null;
-		$has_spatial_column = null !== $first_column_type && $this->is_spatial_data_type( $first_column_type );
-
-		$non_unique = $this->get_index_non_unique( $keyword );
-		$index_name = $this->get_index_name( $node );
-		$index_type = $this->get_index_type( $node, $keyword, $has_spatial_column );
-
+		// Get key parts.
 		$key_list = $node->get_child_node( 'keyListVariants' )->get_child();
 		if ( 'keyListWithExpression' === $key_list->rule_name ) {
 			$key_parts = array();
@@ -701,6 +693,15 @@ class WP_SQLite_Information_Schema_Builder {
 		} else {
 			$key_parts = $key_list->get_descendant_nodes( 'keyPart' );
 		}
+
+		// Get first index column data type (needed for index type).
+		$first_column_name  = $this->get_index_column_name( $key_parts[0] );
+		$first_column_type  = $column_info_map[ $first_column_name ]['DATA_TYPE'] ?? null;
+		$has_spatial_column = null !== $first_column_type && $this->is_spatial_data_type( $first_column_type );
+
+		$non_unique = $this->get_index_non_unique( $keyword );
+		$index_name = $this->get_index_name( $node );
+		$index_type = $this->get_index_type( $node, $keyword, $has_spatial_column );
 
 		$seq_in_index = 1;
 		foreach ( $key_parts as $key_part ) {

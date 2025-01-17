@@ -1414,6 +1414,10 @@ class WP_SQLite_Driver {
 				FROM _mysql_information_schema_statistics
 				WHERE table_schema = ?
 				AND table_name = ?
+				ORDER BY
+					INDEX_NAME = "PRIMARY" DESC,
+					INDEX_TYPE = "FULLTEXT" ASC,
+					SEQ_IN_INDEX
 			',
 			array( $this->db_name, $table_name )
 		)->fetchAll( PDO::FETCH_OBJ );
