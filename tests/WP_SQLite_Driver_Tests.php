@@ -1293,7 +1293,7 @@ class WP_SQLite_Driver_Tests extends TestCase {
 					'Type'    => 'int(11)',
 					'Null'    => 'NO',
 					'Key'     => '',
-					'Default' => '0',
+					'Default' => null,
 					'Extra'   => '',
 				),
 				(object) array(

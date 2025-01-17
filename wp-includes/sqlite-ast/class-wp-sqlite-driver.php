@@ -2014,10 +2014,11 @@ class WP_SQLite_Driver {
 
 		// 4. Generate CREATE TABLE statement columns.
 		$rows              = array();
+		$on_update_queries = array();
 		$has_autoincrement = false;
 		foreach ( $column_info as $column ) {
-			$sql  = '  ';
-			$sql .= sprintf( '"%s"', str_replace( '"', '""', $column['COLUMN_NAME'] ) );
+			$query  = '  ';
+			$query .= sprintf( '"%s"', str_replace( '"', '""', $column['COLUMN_NAME'] ) );
 
 			$type = self::DATA_TYPE_STRING_MAP[ $column['DATA_TYPE'] ];
 
@@ -2045,30 +2046,37 @@ class WP_SQLite_Driver {
 				$type = 'INT';
 			}
 
-			$sql .= ' ' . $type;
+			$query .= ' ' . $type;
 
 			// In MySQL, text fields are case-insensitive by default.
 			// COLLATE NOCASE emulates the same behavior in SQLite.
 			// @TODO: Respect the actual column and index collation.
 			if ( 'TEXT' === $type ) {
-				$sql .= ' COLLATE NOCASE';
+				$query .= ' COLLATE NOCASE';
 			}
 			if ( 'NO' === $column['IS_NULLABLE'] ) {
-				$sql .= ' NOT NULL';
+				$query .= ' NOT NULL';
 			}
 			if ( 'auto_increment' === $column['EXTRA'] ) {
 				$has_autoincrement = true;
-				$sql              .= ' PRIMARY KEY AUTOINCREMENT';
+				$query            .= ' PRIMARY KEY AUTOINCREMENT';
 			}
 			if ( null !== $column['COLUMN_DEFAULT'] ) {
 				// @TODO: Correctly quote based on the data type.
-				$sql .= ' DEFAULT ' . $this->pdo->quote( $column['COLUMN_DEFAULT'] );
+				$query .= ' DEFAULT ' . $this->pdo->quote( $column['COLUMN_DEFAULT'] );
 			}
-			$rows[] = $sql;
+			$rows[] = $query;
+
+			if ( 'on update CURRENT_TIMESTAMP' === $column['EXTRA'] ) {
+				$on_update_queries[] = $this->get_column_on_update_trigger_query(
+					$table_name,
+					$column['COLUMN_NAME']
+				);
+			}
 		}
 
-		// 4. Generate CREATE TABLE statement constraints, collect indexes.
-		$create_index_sqls = array();
+		// 5. Generate CREATE TABLE statement constraints, collect indexes.
+		$create_index_queries = array();
 		foreach ( $grouped_constraints as $constraint ) {
 			ksort( $constraint );
 			$info = $constraint[1];
@@ -2077,8 +2085,8 @@ class WP_SQLite_Driver {
 				if ( $has_autoincrement ) {
 					continue;
 				}
-				$sql    = '  PRIMARY KEY (';
-				$sql   .= implode(
+				$query  = '  PRIMARY KEY (';
+				$query .= implode(
 					', ',
 					array_map(
 						function ( $column ) {
@@ -2087,15 +2095,15 @@ class WP_SQLite_Driver {
 						$constraint
 					)
 				);
-				$sql   .= ')';
-				$rows[] = $sql;
+				$query .= ')';
+				$rows[] = $query;
 			} else {
 				$is_unique = '0' === $info['NON_UNIQUE'];
 
-				$sql  = sprintf( 'CREATE %sINDEX', $is_unique ? 'UNIQUE ' : '' );
-				$sql .= sprintf( ' "%s"', $info['INDEX_NAME'] );
-				$sql .= sprintf( ' ON "%s" (', $table_name );
-				$sql .= implode(
+				$query  = sprintf( 'CREATE %sINDEX', $is_unique ? 'UNIQUE ' : '' );
+				$query .= sprintf( ' "%s"', $info['INDEX_NAME'] );
+				$query .= sprintf( ' ON "%s" (', $table_name );
+				$query .= implode(
 					', ',
 					array_map(
 						function ( $column ) {
@@ -2104,17 +2112,17 @@ class WP_SQLite_Driver {
 						$constraint
 					)
 				);
-				$sql .= ')';
+				$query .= ')';
 
-				$create_index_sqls[] = $sql;
+				$create_index_queries[] = $query;
 			}
 		}
 
-		// 5. Compose the CREATE TABLE statement.
-		$sql  = sprintf( 'CREATE TABLE "%s" (%s', str_replace( '"', '""', $new_table_name ?? $table_name ), "\n" );
-		$sql .= implode( ",\n", $rows );
-		$sql .= "\n)";
-		return array_merge( array( $sql ), $create_index_sqls );
+		// 6. Compose the CREATE TABLE statement.
+		$create_table_query  = sprintf( 'CREATE TABLE "%s" (%s', str_replace( '"', '""', $new_table_name ?? $table_name ), "\n" );
+		$create_table_query .= implode( ",\n", $rows );
+		$create_table_query .= "\n)";
+		return array_merge( array( $create_table_query ), $create_index_queries, $on_update_queries );
 	}
 
 	private function get_mysql_create_table_statement( string $table_name ): ?string {
@@ -2249,6 +2257,21 @@ class WP_SQLite_Driver {
 		}
 
 		return '';
+	}
+
+	private function get_column_on_update_trigger_query( string $table, string $column ): string {
+		// The trigger wouldn't work for virtual and "WITHOUT ROWID" tables,
+		// but currently that can't happen as we're not creating such tables.
+		// See: https://www.sqlite.org/rowidtable.html
+		$trigger_name = "__{$table}_{$column}_on_update__";
+		return "
+			CREATE TRIGGER \"$trigger_name\"
+			AFTER UPDATE ON \"$table\"
+			FOR EACH ROW
+			BEGIN
+			  UPDATE \"$table\" SET \"$column\" = CURRENT_TIMESTAMP WHERE rowid = NEW.rowid;
+			END
+		";
 	}
 
 	private function unquote_sqlite_identifier( string $quoted_identifier ): string {
