@@ -2100,8 +2100,12 @@ class WP_SQLite_Driver {
 			} else {
 				$is_unique = '0' === $info['NON_UNIQUE'];
 
+				// Prefix the original index name with the table name.
+				// This is to avoid conflicting index names in SQLite.
+				$index_name = $table_name . '__' . $info['INDEX_NAME'];
+
 				$query  = sprintf( 'CREATE %sINDEX', $is_unique ? 'UNIQUE ' : '' );
-				$query .= sprintf( ' "%s"', $info['INDEX_NAME'] );
+				$query .= sprintf( ' "%s"', $index_name );
 				$query .= sprintf( ' ON "%s" (', $table_name );
 				$query .= implode(
 					', ',

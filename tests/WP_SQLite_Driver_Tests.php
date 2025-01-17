@@ -380,7 +380,7 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		);
 	}
 
-	public function testCreateTablseWithIdenticalIndexNames() {
+	public function testCreateTablesWithIdenticalIndexNames() {
 		$this->assertQuery(
 			"CREATE TABLE _tmp_table_a (
 					ID BIGINT PRIMARY KEY AUTO_INCREMENT NOT NULL,
