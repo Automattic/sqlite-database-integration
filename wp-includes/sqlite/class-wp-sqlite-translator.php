@@ -1004,7 +1004,7 @@ class WP_SQLite_Translator {
 			$this->rewriter->replace_all( array() );
 
 			/*
-			 * Decide how to parse the current line. We ehttps://github.com/WordPress/sqlite-database-integration/blob/eba8ab5a92d95d332cdbcdf008c7328906027cc2/wp-includes/sqlite/class-wp-sqlite-translator.php#L1007xpect either:
+			 * Decide how to parse the current line. We expect either:
 			 *
 			 * Field definition, e.g.:
 			 *     `my_field` varchar(255) NOT NULL DEFAULT 'foo'
