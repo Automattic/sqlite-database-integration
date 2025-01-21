@@ -285,7 +285,6 @@ class WP_SQLite_Driver_Tests extends TestCase {
 			'SHOW CREATE TABLE _tmp_table;'
 		);
 		$results = $this->engine->get_query_results();
-		# TODO: Should we fix mismatch with original `option_value` text NOT NULL,` without default?
 		$this->assertEquals(
 			"CREATE TABLE `_tmp_table` (
   `ID` bigint NOT NULL AUTO_INCREMENT,
@@ -314,7 +313,6 @@ class WP_SQLite_Driver_Tests extends TestCase {
 			'SHOW CREATE TABLE `_tmp_table`;'
 		);
 		$results = $this->engine->get_query_results();
-		# TODO: Should we fix mismatch with original `option_value` text NOT NULL,` without default?
 		$this->assertEquals(
 			"CREATE TABLE `_tmp_table` (
   `ID` bigint NOT NULL AUTO_INCREMENT,
