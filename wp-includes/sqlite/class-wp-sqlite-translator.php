@@ -1020,7 +1020,7 @@ class WP_SQLite_Translator {
 					WP_SQLite_Token::FLAG_KEYWORD_DATA_TYPE
 				) && ! $current_token->matches(
 					WP_SQLite_Token::TYPE_KEYWORD,
-					WP_SQLite_Token::FLAG_KEYWORD_RESERVED,
+					WP_SQLite_Token::FLAG_KEYWORD_RESERVED
 				)
 			) {
 				$result->fields[] = $this->parse_mysql_create_table_field();
