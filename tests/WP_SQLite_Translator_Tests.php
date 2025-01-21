@@ -1258,7 +1258,7 @@ class WP_SQLite_Translator_Tests extends TestCase {
 			'CREATE TABLE `_tmp_table` (
 				`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 				`timestamp` datetime NOT NULL,
-				`numeric` int(11) NOT NULL,
+				`INDEX` timestamp,
 				PRIMARY KEY (`id`),
 				KEY `timestamp` (`timestamp`),
 				KEY numeric (numeric)
@@ -1284,11 +1284,11 @@ class WP_SQLite_Translator_Tests extends TestCase {
 					'Extra'   => '',
 				),
 				(object) array(
-					'Field'   => 'numeric',
-					'Type'    => 'int(11)',
-					'Null'    => 'NO',
+					'Field'   => 'INDEX',
+					'Type'    => 'timestamp',
+					'Null'    => 'YES',
 					'Key'     => '',
-					'Default' => '0',
+					'Default' => null,
 					'Extra'   => '',
 				),
 			),
