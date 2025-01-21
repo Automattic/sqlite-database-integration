@@ -1252,16 +1252,14 @@ class WP_SQLite_Translator_Tests extends TestCase {
 		$this->assertNull( $result[0]->updated_at );
 	}
 
-	public function testTypeKeywordsAsKeyNames() {
+	public function testDataTypeKeywordsAsKeyNames() {
 		// CREATE TABLE with a data type as a key name
 		$this->assertQuery(
 			'CREATE TABLE `_tmp_table` (
 				`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 				`timestamp` datetime NOT NULL,
-				`INDEX` timestamp,
 				PRIMARY KEY (`id`),
 				KEY `timestamp` (`timestamp`),
-				KEY numeric (numeric)
 			);'
 		);
 		$results = $this->assertQuery( 'DESCRIBE _tmp_table;' );
@@ -1281,6 +1279,33 @@ class WP_SQLite_Translator_Tests extends TestCase {
 					'Null'    => 'NO',
 					'Key'     => '',
 					'Default' => null,
+					'Extra'   => '',
+				),
+			),
+			$results
+		);
+	}
+
+
+	public function testReservedKeywordsAsFieldNames() {
+		// CREATE TABLE with a reserved keyword as a field name
+		$this->assertQuery(
+			'CREATE TABLE `_tmp_table` (
+				`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				`INDEX` timestamp,
+				PRIMARY KEY (`id`),
+				KEY numeric (numeric)
+			);'
+		);
+		$results = $this->assertQuery( 'DESCRIBE _tmp_table;' );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'Field'   => 'id',
+					'Type'    => 'bigint(20) unsigned',
+					'Null'    => 'NO',
+					'Key'     => 'PRI',
+					'Default' => '0',
 					'Extra'   => '',
 				),
 				(object) array(
