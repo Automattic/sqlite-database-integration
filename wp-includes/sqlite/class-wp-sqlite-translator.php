@@ -1010,27 +1010,21 @@ class WP_SQLite_Translator {
 			 *     `my_field` varchar(255) NOT NULL DEFAULT 'foo'
 			 * Constraint definition, e.g.:
 			 *      PRIMARY KEY (`my_field`)
-			 *
-			 * Lexer does not seem to reliably understand whether the
-			 * first token is a field name or a reserved keyword, so
-			 * instead we'll check whether the second non-whitespace
-			 * token is a data type.
 			 */
-			$second_token = $this->rewriter->peek_nth( 2 );
 			$current_token = $this->rewriter->peek();
+			$second_token  = $this->rewriter->peek_nth( 2 );
 
-			if ( $second_token->matches(
-				WP_SQLite_Token::TYPE_KEYWORD,
-				WP_SQLite_Token::FLAG_KEYWORD_DATA_TYPE
-			) && !$current_token->matches(
-				WP_SQLite_Token::TYPE_KEYWORD,
-				WP_SQLite_Token::FLAG_KEYWORD_RESERVED,
-				array( 'KEY' )
-			) ) {
-				echo 'field';
+			if (
+				$second_token->matches(
+					WP_SQLite_Token::TYPE_KEYWORD,
+					WP_SQLite_Token::FLAG_KEYWORD_DATA_TYPE
+				) && ! $current_token->matches(
+					WP_SQLite_Token::TYPE_KEYWORD,
+					WP_SQLite_Token::FLAG_KEYWORD_RESERVED,
+				)
+			) {
 				$result->fields[] = $this->parse_mysql_create_table_field();
 			} else {
-				echo 'constraint';
 				$result->constraints[] = $this->parse_mysql_create_table_constraint();
 			}
 

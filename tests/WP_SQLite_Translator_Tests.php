@@ -1252,20 +1252,19 @@ class WP_SQLite_Translator_Tests extends TestCase {
 		$this->assertNull( $result[0]->updated_at );
 	}
 
-	public function testTimestampColumnNamedTimestamp() {
+	public function testTypeKeywordsAsKeyNames() {
 		// CREATE TABLE with ON UPDATE
 		$this->assertQuery(
-			"CREATE TABLE `_tmp_table` (
+			'CREATE TABLE `_tmp_table` (
 				`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 				`timestamp` datetime NOT NULL,
 				`numeric` int(11) NOT NULL,
 				PRIMARY KEY (`id`),
-				KEY timestamp (timestamp),
+				KEY `timestamp` (`timestamp`),
 				KEY numeric (numeric)
-			);"
+			);'
 		);
 		$results = $this->assertQuery( 'DESCRIBE _tmp_table;' );
-		var_dump( $results );
 		$this->assertEquals(
 			array(
 				(object) array(
