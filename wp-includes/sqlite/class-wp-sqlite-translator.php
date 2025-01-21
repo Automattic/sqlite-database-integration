@@ -1237,7 +1237,6 @@ class WP_SQLite_Translator {
 		}
 
 		$result->value = $this->normalize_mysql_index_type( $constraint->value );
-		echo 'result value: ' . $result->value . "\n";
 		if ( $result->value ) {
 			$this->rewriter->skip(); // Constraint type.
 
