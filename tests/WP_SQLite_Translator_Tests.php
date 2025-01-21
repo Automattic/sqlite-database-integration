@@ -1293,8 +1293,7 @@ class WP_SQLite_Translator_Tests extends TestCase {
 			'CREATE TABLE `_tmp_table` (
 				`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 				`INDEX` timestamp,
-				PRIMARY KEY (`id`),
-				KEY numeric (numeric)
+				PRIMARY KEY (`id`)
 			);'
 		);
 		$results = $this->assertQuery( 'DESCRIBE _tmp_table;' );
