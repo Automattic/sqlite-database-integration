@@ -1252,6 +1252,51 @@ class WP_SQLite_Translator_Tests extends TestCase {
 		$this->assertNull( $result[0]->updated_at );
 	}
 
+	public function testTimestampColumnNamedTimestamp() {
+		// CREATE TABLE with ON UPDATE
+		$this->assertQuery(
+			"CREATE TABLE `_tmp_table` (
+				`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				`timestamp` datetime NOT NULL,
+				`numeric` int(11) NOT NULL,
+				PRIMARY KEY (`id`),
+				KEY timestamp (timestamp),
+				KEY numeric (numeric)
+			);"
+		);
+		$results = $this->assertQuery( 'DESCRIBE _tmp_table;' );
+		var_dump( $results );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'Field'   => 'id',
+					'Type'    => 'bigint(20) unsigned',
+					'Null'    => 'NO',
+					'Key'     => 'PRI',
+					'Default' => '0',
+					'Extra'   => '',
+				),
+				(object) array(
+					'Field'   => 'timestamp',
+					'Type'    => 'datetime',
+					'Null'    => 'NO',
+					'Key'     => '',
+					'Default' => null,
+					'Extra'   => '',
+				),
+				(object) array(
+					'Field'   => 'numeric',
+					'Type'    => 'int(11)',
+					'Null'    => 'NO',
+					'Key'     => '',
+					'Default' => '0',
+					'Extra'   => '',
+				),
+			),
+			$results
+		);
+	}
+
 	public function testColumnWithOnUpdateAndNoIdField() {
 		// CREATE TABLE with ON UPDATE
 		$this->assertQuery(

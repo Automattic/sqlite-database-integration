@@ -1017,13 +1017,20 @@ class WP_SQLite_Translator {
 			 * token is a data type.
 			 */
 			$second_token = $this->rewriter->peek_nth( 2 );
+			$current_token = $this->rewriter->peek();
 
 			if ( $second_token->matches(
 				WP_SQLite_Token::TYPE_KEYWORD,
 				WP_SQLite_Token::FLAG_KEYWORD_DATA_TYPE
+			) && !$current_token->matches(
+				WP_SQLite_Token::TYPE_KEYWORD,
+				WP_SQLite_Token::FLAG_KEYWORD_RESERVED,
+				array( 'KEY' )
 			) ) {
+				echo 'field';
 				$result->fields[] = $this->parse_mysql_create_table_field();
 			} else {
+				echo 'constraint';
 				$result->constraints[] = $this->parse_mysql_create_table_constraint();
 			}
 
@@ -1236,6 +1243,7 @@ class WP_SQLite_Translator {
 		}
 
 		$result->value = $this->normalize_mysql_index_type( $constraint->value );
+		echo 'result value: ' . $result->value . "\n";
 		if ( $result->value ) {
 			$this->rewriter->skip(); // Constraint type.
 
