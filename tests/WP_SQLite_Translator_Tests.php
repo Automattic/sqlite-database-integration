@@ -1252,6 +1252,74 @@ class WP_SQLite_Translator_Tests extends TestCase {
 		$this->assertNull( $result[0]->updated_at );
 	}
 
+	public function testDataTypeKeywordsAsKeyNames() {
+		// CREATE TABLE with a data type as a key name
+		$this->assertQuery(
+			'CREATE TABLE `_tmp_table` (
+				`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				`timestamp` datetime NOT NULL,
+				PRIMARY KEY (`id`),
+				KEY `timestamp` (`timestamp`),
+			);'
+		);
+		$results = $this->assertQuery( 'DESCRIBE _tmp_table;' );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'Field'   => 'id',
+					'Type'    => 'bigint(20) unsigned',
+					'Null'    => 'NO',
+					'Key'     => 'PRI',
+					'Default' => '0',
+					'Extra'   => '',
+				),
+				(object) array(
+					'Field'   => 'timestamp',
+					'Type'    => 'datetime',
+					'Null'    => 'NO',
+					'Key'     => '',
+					'Default' => null,
+					'Extra'   => '',
+				),
+			),
+			$results
+		);
+	}
+
+
+	public function testReservedKeywordsAsFieldNames() {
+		// CREATE TABLE with a reserved keyword as a field name
+		$this->assertQuery(
+			'CREATE TABLE `_tmp_table` (
+				`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				`INDEX` timestamp,
+				PRIMARY KEY (`id`)
+			);'
+		);
+		$results = $this->assertQuery( 'DESCRIBE _tmp_table;' );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'Field'   => 'id',
+					'Type'    => 'bigint(20) unsigned',
+					'Null'    => 'NO',
+					'Key'     => 'PRI',
+					'Default' => '0',
+					'Extra'   => '',
+				),
+				(object) array(
+					'Field'   => 'INDEX',
+					'Type'    => 'timestamp',
+					'Null'    => 'YES',
+					'Key'     => '',
+					'Default' => null,
+					'Extra'   => '',
+				),
+			),
+			$results
+		);
+	}
+
 	public function testColumnWithOnUpdateAndNoIdField() {
 		// CREATE TABLE with ON UPDATE
 		$this->assertQuery(
