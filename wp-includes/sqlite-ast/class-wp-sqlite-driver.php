@@ -447,8 +447,6 @@ class WP_SQLite_Driver {
 		// Fixes a warning in the site-health screen.
 		$this->client_info = SQLite3::version()['versionString'];
 
-		register_shutdown_function( array( $this, '__destruct' ) );
-
 		// WordPress happens to use no foreign keys.
 		$statement = $this->pdo->query( 'PRAGMA foreign_keys' );
 		// phpcs:ignore Universal.Operators.StrictComparisons.LooseEqual
@@ -460,43 +458,6 @@ class WP_SQLite_Driver {
 		$valid_journal_modes = array( 'DELETE', 'TRUNCATE', 'PERSIST', 'MEMORY', 'WAL', 'OFF' );
 		if ( defined( 'SQLITE_JOURNAL_MODE' ) && in_array( SQLITE_JOURNAL_MODE, $valid_journal_modes, true ) ) {
 			$this->pdo->query( 'PRAGMA journal_mode = ' . SQLITE_JOURNAL_MODE );
-		}
-	}
-
-	/**
-	 * Destructor
-	 *
-	 * If SQLITE_MEM_DEBUG constant is defined, append information about
-	 * memory usage into database/mem_debug.txt.
-	 *
-	 * This definition is changed since version 1.7.
-	 */
-	public function __destruct() {
-		if ( defined( 'SQLITE_MEM_DEBUG' ) && SQLITE_MEM_DEBUG ) {
-			$max = ini_get( 'memory_limit' );
-			if ( is_null( $max ) ) {
-				$message = sprintf(
-					'[%s] Memory_limit is not set in php.ini file.',
-					gmdate( 'Y-m-d H:i:s', $_SERVER['REQUEST_TIME'] )
-				);
-				error_log( $message );
-				return;
-			}
-			if ( stripos( $max, 'M' ) !== false ) {
-				$max = (int) $max * MB_IN_BYTES;
-			}
-			$peak = memory_get_peak_usage( true );
-			$used = round( (int) $peak / (int) $max * 100, 2 );
-			if ( $used > 90 ) {
-				$message = sprintf(
-					"[%s] Memory peak usage warning: %s %% used. (max: %sM, now: %sM)\n",
-					gmdate( 'Y-m-d H:i:s', $_SERVER['REQUEST_TIME'] ),
-					$used,
-					$max,
-					$peak
-				);
-				error_log( $message );
-			}
 		}
 	}
 
