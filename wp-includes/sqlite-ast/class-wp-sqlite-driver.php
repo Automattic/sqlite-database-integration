@@ -905,23 +905,22 @@ class WP_SQLite_Driver {
 				$this->execute_select_statement( $ast );
 				break;
 			case 'insertStatement':
+				$this->query_type = 'INSERT';
 				$this->execute_insert_statement( $ast );
 				break;
 			case 'updateStatement':
+				$this->query_type = 'UPDATE';
 				$this->execute_update_statement( $ast );
 				break;
 			case 'replaceStatement':
-			case 'deleteStatement':
-				if ( 'insertStatement' === $ast->rule_name ) {
-					$this->query_type = 'INSERT';
-				} elseif ( 'replaceStatement' === $ast->rule_name ) {
-					$this->query_type = 'REPLACE';
-				} elseif ( 'deleteStatement' === $ast->rule_name ) {
-					$this->query_type = 'DELETE';
-				}
-				$query = $this->translate( $ast );
+				$this->query_type = 'REPLACE';
+				$query            = $this->translate( $ast );
 				$this->execute_sqlite_query( $query );
 				$this->set_result_from_affected_rows();
+				break;
+			case 'deleteStatement':
+				$this->query_type = 'DELETE';
+				$this->execute_delete_statement( $ast );
 				break;
 			case 'createStatement':
 				$this->query_type = 'CREATE';
@@ -1128,6 +1127,88 @@ class WP_SQLite_Driver {
 			$query .= ' WHERE rowid IN ( ' . $where_subquery . ' )';
 		}
 
+		$this->execute_sqlite_query( $query );
+		$this->set_result_from_affected_rows();
+	}
+
+	private function execute_delete_statement( WP_Parser_Node $node ): void {
+		/*
+		 * Multi-table DELETE.
+		 *
+		 * MySQL supports multi-table DELETE statements that don't work in SQLite.
+		 * These statements can have the following two flavours:
+		 *  1. "DELETE t1, t2 FROM ... JOIN ... WHERE ..."
+		 *  2. "DELETE FROM t1, t2 USING ... JOIN ... WHERE ..."
+		 *
+		 * We will rewrite such statements into a SELECT to fetch the ROWIDs of
+		 * the rows to delete and then execute a DELETE statement for each table.
+		 */
+		$alias_ref_list = $node->get_child_node( 'tableAliasRefList' );
+		if ( null !== $alias_ref_list ) {
+			// 1. Get table aliases targeted by the DELETE statement.
+			$table_aliases = array();
+			foreach ( $alias_ref_list->get_child_nodes() as $alias_ref ) {
+				$table_aliases[] = $this->unquote_sqlite_identifier(
+					$this->translate( $alias_ref )
+				);
+			}
+
+			// 2. Create an alias to table name map.
+			$alias_map      = array();
+			$table_ref_list = $node->get_child_node( 'tableReferenceList' );
+			foreach ( $table_ref_list->get_descendant_nodes( 'singleTable' ) as $single_table ) {
+				$alias = $this->unquote_sqlite_identifier(
+					$this->translate( $single_table->get_child_node( 'tableAlias' ) )
+				);
+				$ref   = $this->unquote_sqlite_identifier(
+					$this->translate( $single_table->get_child_node( 'tableRef' ) )
+				);
+
+				$alias_map[ $alias ] = $ref;
+			}
+
+			// 3. Compose the SELECT query to fetch ROWIDs to delete.
+			$where_clause = $node->get_child_node( 'whereClause' );
+			if ( null !== $where_clause ) {
+				$where = $this->translate( $where_clause->get_child_node( 'expr' ) );
+			}
+
+			$select_list = array();
+			foreach ( $table_aliases as $table ) {
+				$select_list[] = "\"$table\".rowid AS \"{$table}_rowid\"";
+			}
+
+			$ids = $this->execute_sqlite_query(
+				sprintf(
+					'SELECT %s FROM %s %s',
+					implode( ', ', $select_list ),
+					$this->translate( $table_ref_list ),
+					isset( $where ) ? "WHERE $where" : ''
+				)
+			)->fetchAll( PDO::FETCH_ASSOC );
+
+			// 4. Execute DELETE statements for each table.
+			$rows = 0;
+			foreach ( $table_aliases as $table ) {
+				$this->execute_sqlite_query(
+					sprintf(
+						'DELETE FROM "%s" AS %s WHERE rowid IN ( %s )',
+						$alias_map[ $table ],
+						$table,
+						implode( ', ', array_column( $ids, "{$table}_rowid" ) )
+					)
+				);
+				$this->set_result_from_affected_rows();
+				$rows += $this->affected_rows;
+			}
+
+			$this->set_result_from_affected_rows( $rows );
+			return;
+		}
+
+		// @TODO: Translate DELETE with JOIN to use a subquery.
+
+		$query = $this->translate( $node );
 		$this->execute_sqlite_query( $query );
 		$this->set_result_from_affected_rows();
 	}
@@ -1784,7 +1865,7 @@ class WP_SQLite_Driver {
 		 * We'll probably need to overload the like() function:
 		 *   https://www.sqlite.org/lang_corefunc.html#like
 		 */
-		return $this->translate_sequence( $node->get_children() );
+		return $this->translate_sequence( $node->get_children() ) . " ESCAPE '\\'";
 	}
 
 	private function translate_regexp_functions( WP_Parser_Node $node ): string {
