@@ -196,15 +196,6 @@ class WP_SQLite_Driver {
 		'%y' => '%y',
 	);
 
-	const DATA_TYPES_CACHE_TABLE = '_mysql_data_types_cache';
-
-	const CREATE_DATA_TYPES_CACHE_TABLE = 'CREATE TABLE IF NOT EXISTS _mysql_data_types_cache (
-		`table` TEXT NOT NULL,
-		`column_or_index` TEXT NOT NULL,
-		`mysql_type` TEXT NOT NULL,
-		PRIMARY KEY(`table`, `column_or_index`)
-	);';
-
 	/**
 	 * @var WP_Parser_Grammar
 	 */
@@ -371,13 +362,6 @@ class WP_SQLite_Driver {
 	private $pdo_fetch_mode;
 
 	/**
-	 * Associative array with list of system (non-WordPress) tables.
-	 *
-	 * @var array  [tablename => tablename]
-	 */
-	private $sqlite_system_tables = array();
-
-	/**
 	 * The last error message from SQLite.
 	 *
 	 * @var string
@@ -446,14 +430,6 @@ class WP_SQLite_Driver {
 
 		// MySQL data comes across stringified by default.
 		$pdo->setAttribute( PDO::ATTR_STRINGIFY_FETCHES, true ); // phpcs:ignore WordPress.DB.RestrictedClasses.mysql__PDO
-		$pdo->query( self::CREATE_DATA_TYPES_CACHE_TABLE );
-
-		/*
-		 * A list of system tables lets us emulate information_schema
-		 * queries without returning extra tables.
-		 */
-		$this->sqlite_system_tables ['sqlite_sequence']              = 'sqlite_sequence';
-		$this->sqlite_system_tables [ self::DATA_TYPES_CACHE_TABLE ] = self::DATA_TYPES_CACHE_TABLE;
 
 		$this->pdo = $pdo;
 
