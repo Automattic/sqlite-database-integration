@@ -1004,12 +1004,21 @@ class WP_SQLite_Translator {
 			$this->rewriter->replace_all( array() );
 
 			/*
-			 * Decide how to parse the current line. We expect either:
+			 * Decide how to parse the current line. We ehttps://github.com/WordPress/sqlite-database-integration/blob/eba8ab5a92d95d332cdbcdf008c7328906027cc2/wp-includes/sqlite/class-wp-sqlite-translator.php#L1007xpect either:
 			 *
 			 * Field definition, e.g.:
 			 *     `my_field` varchar(255) NOT NULL DEFAULT 'foo'
 			 * Constraint definition, e.g.:
 			 *      PRIMARY KEY (`my_field`)
+			 *
+			 * Lexer does not seem to reliably understand whether the
+			 * first token is a field name or a reserved keyword, so
+			 * alongside checking for the reserved keyword, we'll also
+			 * check whether the second non-whitespace token is a data type.
+			 *
+			 * By checking for the reserved keyword, we can be sure that
+			 * we're not parsing a constraint as a field when the
+			 * constraint symbol matches a data type.
 			 */
 			$current_token = $this->rewriter->peek();
 			$second_token  = $this->rewriter->peek_nth( 2 );
