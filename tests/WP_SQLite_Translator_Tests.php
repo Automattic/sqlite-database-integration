@@ -1253,7 +1253,7 @@ class WP_SQLite_Translator_Tests extends TestCase {
 	}
 
 	public function testTypeKeywordsAsKeyNames() {
-		// CREATE TABLE with ON UPDATE
+		// CREATE TABLE with a data type as a key name
 		$this->assertQuery(
 			'CREATE TABLE `_tmp_table` (
 				`id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
