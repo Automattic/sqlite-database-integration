@@ -1303,28 +1303,9 @@ class WP_SQLite_Driver {
 
 		$this->results      = 1;
 		$this->return_value = $this->results;
-		return;
 
-		/*
-		 * SQLite supports only a small subset of MySQL ALTER TABLE statement.
-		 * We need to handle some differences and emulate some operations:
-		 *
-		 * 1. Multiple operations in a single ALTER TABLE statement.
-		 *
-		 *  SQLite doesn't support multiple operations in a single ALTER TABLE
-		 *  statement. We need to execute each operation as a separate query.
-		 *
-		 * 2. ADD COLUMN in SQLite doesn't support some valid MySQL constructs:
-		 *
-		 *  - Adding a column with PRIMARY KEY or UNIQUE constraint.
-		 *  - Adding a column with AUTOINCREMENT.
-		 *  - Adding a column with CURRENT_TIME, CURRENT_DATE, CURRENT_TIMESTAMP,
-		 *    or an expression in parentheses as a default value.
-		 *  - Adding a NOT NULL column without a default value when the table is
-		 *    not empty. In MySQL, this depends on the data type and SQL mode.
-		 *
-		 *    @TODO: Address these nuances.
-		 */
+		// @TODO: Consider using a "fast path" for ALTER TABLE statements that
+		//        consist only of operations that SQLite's ALTER TABLE supports.
 	}
 
 	private function execute_drop_table_statement( WP_Parser_Node $node ): void {
