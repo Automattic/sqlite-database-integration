@@ -1241,44 +1241,42 @@ class WP_SQLite_Driver {
 		$this->execute_sqlite_query( 'PRAGMA foreign_keys = OFF' );
 
 		// 2. Create a new table with the new schema.
-		$tmp_table_name     = "_tmp__{$table_name}_" . uniqid();
-		$queries            = $this->get_sqlite_create_table_statement( $table_name, $tmp_table_name );
-		$create_table_query = $queries[0];
-		$constraint_queries = array_slice( $queries, 1 );
+		$tmp_table_name        = "_tmp__{$table_name}_" . uniqid();
+		$quoted_table_name     = $this->quote_sqlite_identifier( $table_name );
+		$quoted_tmp_table_name = $this->quote_sqlite_identifier( $tmp_table_name );
+		$queries               = $this->get_sqlite_create_table_statement( $table_name, $tmp_table_name );
+		$create_table_query    = $queries[0];
+		$constraint_queries    = array_slice( $queries, 1 );
 		$this->execute_sqlite_query( $create_table_query );
 
 		// 3. Copy data from the original table to the new table.
 		$this->execute_sqlite_query(
 			sprintf(
-				'INSERT INTO "%s" (%s) SELECT %s FROM "%s"',
-				$tmp_table_name,
+				'INSERT INTO %s (%s) SELECT %s FROM %s',
+				$quoted_tmp_table_name,
 				implode(
 					', ',
-					array_map(
-						function ( $column ) {
-							return '"' . $column . '"';
-						},
-						$column_map
-					)
+					array_map( array( $this, 'quote_sqlite_identifier' ), $column_map )
 				),
 				implode(
 					', ',
-					array_map(
-						function ( $column ) {
-							return '"' . $column . '"';
-						},
-						array_keys( $column_map )
-					)
+					array_map( array( $this, 'quote_sqlite_identifier' ), array_keys( $column_map ) )
 				),
-				$table_name
+				$quoted_table_name
 			)
 		);
 
 		// 4. Drop the original table.
-		$this->execute_sqlite_query( sprintf( 'DROP TABLE "%s"', $table_name ) );
+		$this->execute_sqlite_query( sprintf( 'DROP TABLE %s', $quoted_table_name ) );
 
 		// 5. Rename the new table to the original table name.
-		$this->execute_sqlite_query( sprintf( 'ALTER TABLE "%s" RENAME TO "%s"', $tmp_table_name, $table_name ) );
+		$this->execute_sqlite_query(
+			sprintf(
+				'ALTER TABLE %s RENAME TO %s',
+				$quoted_tmp_table_name,
+				$quoted_table_name
+			)
+		);
 
 		// 6. Reconstruct indexes, triggers, and views.
 		foreach ( $constraint_queries as $query ) {
@@ -2031,7 +2029,7 @@ class WP_SQLite_Driver {
 		$has_autoincrement = false;
 		foreach ( $column_info as $column ) {
 			$query  = '  ';
-			$query .= sprintf( '"%s"', str_replace( '"', '""', $column['COLUMN_NAME'] ) );
+			$query .= $this->quote_sqlite_identifier( $column['COLUMN_NAME'] );
 
 			$type = self::DATA_TYPE_STRING_MAP[ $column['DATA_TYPE'] ];
 
@@ -2103,7 +2101,7 @@ class WP_SQLite_Driver {
 					', ',
 					array_map(
 						function ( $column ) {
-							return sprintf( '"%s"', str_replace( '"', '""', $column['COLUMN_NAME'] ) );
+							return $this->quote_sqlite_identifier( $column['COLUMN_NAME'] );
 						},
 						$constraint
 					)
@@ -2124,7 +2122,7 @@ class WP_SQLite_Driver {
 					', ',
 					array_map(
 						function ( $column ) {
-							return sprintf( '"%s"', str_replace( '"', '""', $column['COLUMN_NAME'] ) );
+							return $this->quote_sqlite_identifier( $column['COLUMN_NAME'] );
 						},
 						$constraint
 					)
@@ -2136,7 +2134,10 @@ class WP_SQLite_Driver {
 		}
 
 		// 6. Compose the CREATE TABLE statement.
-		$create_table_query  = sprintf( 'CREATE TABLE "%s" (%s', str_replace( '"', '""', $new_table_name ?? $table_name ), "\n" );
+		$create_table_query  = sprintf(
+			"CREATE TABLE %s (\n",
+			$this->quote_sqlite_identifier( $new_table_name ?? $table_name )
+		);
 		$create_table_query .= implode( ",\n", $rows );
 		$create_table_query .= "\n)";
 		return array_merge( array( $create_table_query ), $create_index_queries, $on_update_queries );
@@ -2181,10 +2182,8 @@ class WP_SQLite_Driver {
 		// 4. Generate CREATE TABLE statement columns.
 		$rows = array();
 		foreach ( $column_info as $column ) {
-			$sql = '  ';
-			// @TODO: Proper identifier escaping.
-			$sql .= sprintf( '`%s`', str_replace( '`', '``', $column['COLUMN_NAME'] ) );
-
+			$sql  = '  ';
+			$sql .= $this->quote_mysql_identifier( $column['COLUMN_NAME'] );
 			$sql .= ' ' . $column['COLUMN_TYPE'];
 			if ( 'NO' === $column['IS_NULLABLE'] ) {
 				$sql .= ' NOT NULL';
@@ -2210,8 +2209,7 @@ class WP_SQLite_Driver {
 					', ',
 					array_map(
 						function ( $column ) {
-							// @TODO: Proper identifier escaping.
-							return sprintf( '`%s`', str_replace( '`', '``', $column['COLUMN_NAME'] ) );
+							return $this->quote_mysql_identifier( $column['COLUMN_NAME'] );
 						},
 						$constraint
 					)
@@ -2221,16 +2219,14 @@ class WP_SQLite_Driver {
 			} else {
 				$is_unique = '0' === $info['NON_UNIQUE'];
 
-				$sql = sprintf( '  %sKEY', $is_unique ? 'UNIQUE ' : '' );
-				// @TODO: Proper identifier escaping.
-				$sql .= sprintf( ' `%s`', str_replace( '`', '``', $info['INDEX_NAME'] ) );
+				$sql  = sprintf( '  %sKEY ', $is_unique ? 'UNIQUE ' : '' );
+				$sql .= $this->quote_mysql_identifier( $info['INDEX_NAME'] );
 				$sql .= ' (';
 				$sql .= implode(
 					', ',
 					array_map(
 						function ( $column ) {
-							// @TODO: Proper identifier escaping.
-							return sprintf( '`%s`', str_replace( '`', '``', $column['COLUMN_NAME'] ) );
+							return $this->quote_mysql_identifier( $column['COLUMN_NAME'] );
 						},
 						$constraint
 					)
@@ -2242,17 +2238,15 @@ class WP_SQLite_Driver {
 		}
 
 		// 5. Compose the CREATE TABLE statement.
-		// @TODO: Proper identifier escaping.
-		$sql  = sprintf( 'CREATE TABLE `%s` (%s', str_replace( '`', '``', $table_name ), "\n" );
-		$sql .= implode( ",\n", $rows );
-		$sql .= "\n)";
-
-		$sql .= sprintf( ' ENGINE=%s', $table_info['ENGINE'] );
-
 		$collation = $table_info['TABLE_COLLATION'];
 		$charset   = substr( $collation, 0, strpos( $collation, '_' ) );
-		$sql      .= sprintf( ' DEFAULT CHARSET=%s', $charset );
-		$sql      .= sprintf( ' COLLATE=%s', $collation );
+
+		$sql  = sprintf( "CREATE TABLE %s (\n", $this->quote_mysql_identifier( $table_name ) );
+		$sql .= implode( ",\n", $rows );
+		$sql .= "\n)";
+		$sql .= sprintf( ' ENGINE=%s', $table_info['ENGINE'] );
+		$sql .= sprintf( ' DEFAULT CHARSET=%s', $charset );
+		$sql .= sprintf( ' COLLATE=%s', $collation );
 		return $sql;
 	}
 
@@ -2299,6 +2293,14 @@ class WP_SQLite_Driver {
 			$unquoted = $quoted_identifier;
 		}
 		return str_replace( '""', '"', $unquoted );
+	}
+
+	private function quote_sqlite_identifier( string $unquoted_identifier ): string {
+		return '"' . str_replace( '"', '""', $unquoted_identifier ) . '"';
+	}
+
+	private function quote_mysql_identifier( string $unquoted_identifier ): string {
+		return '`' . str_replace( '`', '``', $unquoted_identifier ) . '`';
 	}
 
 	/**
