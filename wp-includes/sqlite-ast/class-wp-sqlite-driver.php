@@ -22,6 +22,13 @@ class WP_SQLite_Driver {
 	const SQLITE_LOCKED = 6;
 
 	/**
+	 * An identifier prefix for internal objects.
+	 *
+	 * @TODO: Do not allow accessing objects with this prefix.
+	 */
+	const RESERVED_PREFIX = '_wp_sqlite_';
+
+	/**
 	 * A map of MySQL tokens to SQLite data types.
 	 *
 	 * This is used to translate a MySQL data type to an SQLite data type.
@@ -1244,7 +1251,7 @@ class WP_SQLite_Driver {
 		$this->execute_sqlite_query( 'PRAGMA foreign_keys = OFF' );
 
 		// 2. Create a new table with the new schema.
-		$tmp_table_name        = "_tmp__{$table_name}_" . uniqid();
+		$tmp_table_name        = self::RESERVED_PREFIX . "tmp_{$table_name}_" . uniqid();
 		$quoted_table_name     = $this->quote_sqlite_identifier( $table_name );
 		$quoted_tmp_table_name = $this->quote_sqlite_identifier( $tmp_table_name );
 		$queries               = $this->get_sqlite_create_table_statement( $table_name, $tmp_table_name );
@@ -2277,7 +2284,7 @@ class WP_SQLite_Driver {
 		// The trigger wouldn't work for virtual and "WITHOUT ROWID" tables,
 		// but currently that can't happen as we're not creating such tables.
 		// See: https://www.sqlite.org/rowidtable.html
-		$trigger_name = "__{$table}_{$column}_on_update__";
+		$trigger_name = self::RESERVED_PREFIX . "{$table}_{$column}_on_update";
 		return "
 			CREATE TRIGGER \"$trigger_name\"
 			AFTER UPDATE ON \"$table\"
