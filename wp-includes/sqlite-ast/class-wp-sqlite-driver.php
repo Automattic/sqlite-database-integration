@@ -1057,17 +1057,20 @@ class WP_SQLite_Driver {
 		$parts = array();
 		foreach ( $node->get_children() as $child ) {
 			if ( $child instanceof WP_MySQL_Token && WP_MySQL_Lexer::IGNORE_SYMBOL === $child->id ) {
+				// Translate "UPDATE IGNORE" to "UPDATE OR IGNORE".
 				$parts[] = 'OR IGNORE';
 			} else {
 				$parts[] = $this->translate( $child );
 			}
 
+			// When using a subquery, skip WHERE, ORDER BY, and LIMIT.
 			if (
 				null !== $where_subquery
 				&& $child instanceof WP_Parser_Node
 				&& 'updateList' === $child->rule_name
 			) {
-				// Skip WHERE, ORDER BY, and LIMIT.
+				// We can stop here, as the update statement grammar is:
+				//   ... updateList whereClause? orderClause? simpleLimitClause?
 				break;
 			}
 		}
