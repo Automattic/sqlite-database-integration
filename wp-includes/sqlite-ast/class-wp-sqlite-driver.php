@@ -1392,7 +1392,13 @@ class WP_SQLite_Driver {
 				$this->execute_show_tables_statement( $node );
 				break;
 			default:
-				// @TODO
+				throw new Exception(
+					sprintf(
+						'Unsupported statement type: "%s" > "%s"',
+						$node->rule_name,
+						$keyword1->value
+					)
+				);
 		}
 	}
 
