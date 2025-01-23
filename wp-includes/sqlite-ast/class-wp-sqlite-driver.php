@@ -1210,37 +1210,37 @@ class WP_SQLite_Driver {
 		foreach ( $node->get_descendant_nodes( 'alterListItem' ) as $action ) {
 			$first_token = $action->get_child_token();
 
-			if ( WP_MySQL_Lexer::DROP_SYMBOL === $first_token->id ) {
-				$name = $this->translate( $action->get_child_node( 'columnInternalRef' ) );
-				if ( null !== $name ) {
-					$name = $this->unquote_sqlite_identifier( $name );
-					unset( $column_map[ $name ] );
-				}
-			}
-
-			if ( WP_MySQL_Lexer::CHANGE_SYMBOL === $first_token->id ) {
-				$old_name = $this->unquote_sqlite_identifier(
-					$this->translate( $action->get_child_node( 'columnInternalRef' ) )
-				);
-				$new_name = $this->unquote_sqlite_identifier(
-					$this->translate( $action->get_child_node( 'identifier' ) )
-				);
-
-				$column_map[ $old_name ] = $new_name;
-			}
-
-			if ( WP_MySQL_Lexer::RENAME_SYMBOL === $first_token->id ) {
-				$column_ref = $action->get_child_node( 'columnInternalRef' );
-				if ( null !== $column_ref ) {
+			switch ( $first_token->id ) {
+				case WP_MySQL_Lexer::DROP_SYMBOL:
+					$name = $this->translate( $action->get_child_node( 'columnInternalRef' ) );
+					if ( null !== $name ) {
+						$name = $this->unquote_sqlite_identifier( $name );
+						unset( $column_map[ $name ] );
+					}
+					break;
+				case WP_MySQL_Lexer::CHANGE_SYMBOL:
 					$old_name = $this->unquote_sqlite_identifier(
-						$this->translate( $column_ref )
+						$this->translate( $action->get_child_node( 'columnInternalRef' ) )
 					);
 					$new_name = $this->unquote_sqlite_identifier(
 						$this->translate( $action->get_child_node( 'identifier' ) )
 					);
 
 					$column_map[ $old_name ] = $new_name;
-				}
+					break;
+				case WP_MySQL_Lexer::RENAME_SYMBOL:
+					$column_ref = $action->get_child_node( 'columnInternalRef' );
+					if ( null !== $column_ref ) {
+						$old_name = $this->unquote_sqlite_identifier(
+							$this->translate( $column_ref )
+						);
+						$new_name = $this->unquote_sqlite_identifier(
+							$this->translate( $action->get_child_node( 'identifier' ) )
+						);
+
+						$column_map[ $old_name ] = $new_name;
+					}
+					break;
 			}
 		}
 
