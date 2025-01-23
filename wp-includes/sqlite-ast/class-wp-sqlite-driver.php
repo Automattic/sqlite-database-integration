@@ -438,6 +438,9 @@ class WP_SQLite_Driver {
 		}
 
 		// Fixes a warning in the site-health screen.
+		// @TODO: It is not clear how this fixes a warning or if it serves a
+		//        different purpose. We should also make this use PDO and
+		//        consider providing that information lazily via a getter.
 		$this->client_info = SQLite3::version()['versionString'];
 
 		$this->pdo->query( 'PRAGMA foreign_keys = ON' );
