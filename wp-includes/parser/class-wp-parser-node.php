@@ -262,4 +262,9 @@ class WP_Parser_Node {
 		}
 		return $all_descendants;
 	}
+
+	/*
+	 * @TODO: Let's implement a more powerful AST-querying API.
+	 *        See: https://github.com/WordPress/sqlite-database-integration/pull/164#discussion_r1855230501
+	 */
 }
