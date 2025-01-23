@@ -1465,7 +1465,6 @@ class WP_SQLite_Information_Schema_Builder {
 				$value = $this->get_value( $child );
 			} elseif ( WP_MySQL_Lexer::BACK_TICK_QUOTED_ID === $child->id ) {
 				$value = substr( $child->value, 1, -1 );
-				$value = str_replace( '\`', '`', $value );
 				$value = str_replace( '``', '`', $value );
 			} elseif ( WP_MySQL_Lexer::SINGLE_QUOTED_TEXT === $child->id ) {
 				$value = $child->value;

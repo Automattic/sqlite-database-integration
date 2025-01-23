@@ -1702,9 +1702,12 @@ class WP_SQLite_Driver {
 			case WP_MySQL_Lexer::EOF:
 				return null;
 			case WP_MySQL_Lexer::IDENTIFIER:
+				return '"' . $token->value . '"';
 			case WP_MySQL_Lexer::BACK_TICK_QUOTED_ID:
-				// @TODO: Properly unquote (MySQL) and escape (SQLite).
-				return '"' . trim( $token->value, '`"' ) . '"';
+				$value = substr( $token->value, 1, -1 );   // remove backticks
+				$value = str_replace( '``', '`', $value ); // unescape from MySQL
+				$value = str_replace( '"', '""', $value ); // escape for SQLite
+				return '"' . $value . '"';
 			case WP_MySQL_Lexer::AUTO_INCREMENT_SYMBOL:
 				return 'AUTOINCREMENT';
 			case WP_MySQL_Lexer::BINARY_SYMBOL:
