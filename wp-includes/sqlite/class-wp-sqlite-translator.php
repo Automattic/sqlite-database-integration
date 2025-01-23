@@ -394,7 +394,7 @@ class WP_SQLite_Translator {
 			}
 		}
 
-		new WP_SQLite_PDO_User_Defined_Functions( $pdo );
+		WP_SQLite_PDO_User_Defined_Functions::register_for( $pdo );
 
 		// MySQL data comes across stringified by default.
 		$pdo->setAttribute( PDO::ATTR_STRINGIFY_FETCHES, true ); // phpcs:ignore WordPress.DB.RestrictedClasses.mysql__PDO
