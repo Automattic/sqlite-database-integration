@@ -536,18 +536,6 @@ class WP_SQLite_Driver {
 		}
 		$this->pdo_fetch_mode = $mode;
 		$this->mysql_query    = $statement;
-		if (
-			preg_match( '/^\s*START TRANSACTION/i', $statement )
-			|| preg_match( '/^\s*BEGIN/i', $statement )
-		) {
-			return $this->begin_transaction();
-		}
-		if ( preg_match( '/^\s*COMMIT/i', $statement ) ) {
-			return $this->commit();
-		}
-		if ( preg_match( '/^\s*ROLLBACK/i', $statement ) ) {
-			return $this->rollback();
-		}
 
 		try {
 			// Parse the MySQL query.
@@ -559,6 +547,45 @@ class WP_SQLite_Driver {
 
 			if ( null === $ast ) {
 				throw new Exception( 'Failed to parse the MySQL query.' );
+			}
+
+			// Handle transactional statements.
+			$child = $ast->get_child();
+			if ( $child instanceof WP_Parser_Node && 'beginWork' === $child->rule_name ) {
+				return $this->begin_transaction();
+			}
+
+			if ( $child instanceof WP_Parser_Node && 'simpleStatement' === $child->rule_name ) {
+				$subchild = $child->get_child_node( 'transactionOrLockingStatement' );
+				if ( null !== $subchild ) {
+					$tokens = $subchild->get_descendant_tokens();
+					$token1 = $tokens[0];
+					$token2 = $tokens[1] ?? null;
+					if (
+						WP_MySQL_Lexer::START_SYMBOL === $token1->id
+						&& WP_MySQL_Lexer::TRANSACTION_SYMBOL === $token2->id
+					) {
+						return $this->begin_transaction();
+					}
+
+					if (
+						WP_MySQL_Lexer::BEGIN_SYMBOL === $token1->id
+					) {
+						return $this->begin_transaction();
+					}
+
+					if (
+						WP_MySQL_Lexer::COMMIT_SYMBOL === $token1->id
+					) {
+						return $this->commit();
+					}
+
+					if (
+						WP_MySQL_Lexer::ROLLBACK_SYMBOL === $token1->id
+					) {
+						return $this->rollback();
+					}
+				}
 			}
 
 			// Perform all the queries in a nested transaction.
