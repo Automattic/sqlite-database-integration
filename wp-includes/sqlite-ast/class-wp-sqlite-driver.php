@@ -1255,7 +1255,8 @@ class WP_SQLite_Driver {
 		 */
 
 		// 1. If foreign key constraints are enabled, disable them.
-		// @TODO
+		$pragma_foreign_keys = $this->execute_sqlite_query( 'PRAGMA foreign_keys' )->fetchColumn();
+		$this->execute_sqlite_query( 'PRAGMA foreign_keys = OFF' );
 
 		// 2. Create a new table with the new schema.
 		$tmp_table_name     = "_tmp__{$table_name}_" . uniqid();
@@ -1300,6 +1301,12 @@ class WP_SQLite_Driver {
 		// 6. Reconstruct indexes, triggers, and views.
 		foreach ( $constraint_queries as $query ) {
 			$this->execute_sqlite_query( $query );
+		}
+
+		// 7. If foreign key constraints were enabled, verify and enable them.
+		if ( '1' === $pragma_foreign_keys ) {
+			$this->execute_sqlite_query( 'PRAGMA foreign_key_check' );
+			$this->execute_sqlite_query( 'PRAGMA foreign_keys = ON' );
 		}
 
 		// @TODO: Triggers and views.
