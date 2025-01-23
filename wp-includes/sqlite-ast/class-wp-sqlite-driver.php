@@ -473,37 +473,19 @@ class WP_SQLite_Driver {
 	}
 
 	/**
-	 * Method to execute query().
+	 * Translate and execute a MySQL query in SQLite.
 	 *
-	 * Divide the query types into seven different ones. That is to say:
+	 * A single MySQL query can be translated into zero or more SQLite queries.
 	 *
-	 * 1. SELECT SQL_CALC_FOUND_ROWS
-	 * 2. INSERT
-	 * 3. CREATE TABLE(INDEX)
-	 * 4. ALTER TABLE
-	 * 5. SHOW VARIABLES
-	 * 6. DROP INDEX
-	 * 7. THE OTHERS
+	 * @param string $query              Full SQL statement string.
+	 * @param int    $fetch_mode         PDO fetch mode. Default is PDO::FETCH_OBJ.
+	 * @param array  ...$fetch_mode_args Additional fetch mode arguments.
 	 *
-	 * #1 is just a tricky play. See the private function handle_sql_count() in query.class.php.
-	 * From #2 through #5 call different functions respectively.
-	 * #6 call the ALTER TABLE query.
-	 * #7 is a normal process: sequentially call prepare_query() and execute_query().
-	 *
-	 * #1 process has been changed since version 1.5.1.
-	 *
-	 * @param string $statement          Full SQL statement string.
-	 * @param int    $mode               Not used.
-	 * @param array  ...$fetch_mode_args Not used.
-	 *
-	 * @see PDO::query()
-	 *
+	 * @return mixed        Return value, depending on the query type.
 	 * @throws Exception    If the query could not run.
 	 * @throws PDOException If the translated query could not run.
-	 *
-	 * @return mixed according to the query type
 	 */
-	public function query( $statement, $mode = PDO::FETCH_OBJ, ...$fetch_mode_args ) { // phpcs:ignore WordPress.DB.RestrictedClasses
+	public function query( string $query, $fetch_mode = PDO::FETCH_OBJ, ...$fetch_mode_args ) { // phpcs:ignore WordPress.DB.RestrictedClasses
 		$this->flush();
 		if ( function_exists( 'apply_filters' ) ) {
 			/**
@@ -522,24 +504,24 @@ class WP_SQLite_Driver {
 			 *
 			 * @param null|array $result Default null to continue with the query.
 			 * @param object     $translator The translator object. You can call $translator->execute_sqlite_query().
-			 * @param string     $statement The statement passed.
-			 * @param int        $mode Fetch mode: PDO::FETCH_OBJ, PDO::FETCH_CLASS, etc.
+			 * @param string     $query The statement passed.
+			 * @param int        $fetch_mode Fetch mode: PDO::FETCH_OBJ, PDO::FETCH_CLASS, etc.
 			 * @param array      $fetch_mode_args Variable arguments passed to query.
 			 *
 			 * @returns null|array Null to proceed, or an array containing a resultset.
 			 * @since 2.1.0
 			 */
-			$pre = apply_filters( 'pre_query_sqlite_db', null, $this, $statement, $mode, $fetch_mode_args );
+			$pre = apply_filters( 'pre_query_sqlite_db', null, $this, $query, $fetch_mode, $fetch_mode_args );
 			if ( null !== $pre ) {
 				return $pre;
 			}
 		}
-		$this->pdo_fetch_mode = $mode;
-		$this->mysql_query    = $statement;
+		$this->pdo_fetch_mode = $fetch_mode;
+		$this->mysql_query    = $query;
 
 		try {
 			// Parse the MySQL query.
-			$lexer  = new WP_MySQL_Lexer( $statement );
+			$lexer  = new WP_MySQL_Lexer( $query );
 			$tokens = $lexer->remaining_tokens();
 
 			$parser = new WP_MySQL_Parser( self::$grammar, $tokens );
@@ -549,7 +531,7 @@ class WP_SQLite_Driver {
 				throw new Exception( 'Failed to parse the MySQL query.' );
 			}
 
-			// Handle transactional statements.
+			// Handle transaction commands.
 			$child = $ast->get_child();
 			if ( $child instanceof WP_Parser_Node && 'beginWork' === $child->rule_name ) {
 				return $this->begin_transaction();
