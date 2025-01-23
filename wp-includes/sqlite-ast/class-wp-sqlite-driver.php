@@ -440,12 +440,7 @@ class WP_SQLite_Driver {
 		// Fixes a warning in the site-health screen.
 		$this->client_info = SQLite3::version()['versionString'];
 
-		// WordPress happens to use no foreign keys.
-		$statement = $this->pdo->query( 'PRAGMA foreign_keys' );
-		// phpcs:ignore Universal.Operators.StrictComparisons.LooseEqual
-		if ( $statement->fetchColumn( 0 ) == '0' ) {
-			$this->pdo->query( 'PRAGMA foreign_keys = ON' );
-		}
+		$this->pdo->query( 'PRAGMA foreign_keys = ON' );
 		$this->pdo->query( 'PRAGMA encoding="UTF-8";' );
 
 		$valid_journal_modes = array( 'DELETE', 'TRUNCATE', 'PERSIST', 'MEMORY', 'WAL', 'OFF' );
