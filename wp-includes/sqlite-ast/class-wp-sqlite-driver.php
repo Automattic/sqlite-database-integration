@@ -362,13 +362,6 @@ class WP_SQLite_Driver {
 	private $pdo_fetch_mode;
 
 	/**
-	 * The last error message from SQLite.
-	 *
-	 * @var string
-	 */
-	private $last_sqlite_error;
-
-	/**
 	 * @var WP_SQLite_Information_Schema_Builder
 	 */
 	private $information_schema_builder;
@@ -673,14 +666,12 @@ class WP_SQLite_Driver {
 		if ( false === $stmt || null === $stmt ) {
 			$this->last_exec_returned = null;
 			$info                     = $this->pdo->errorInfo();
-			$this->last_sqlite_error  = $info[0] . ' ' . $info[2];
 			throw new PDOException( implode( ' ', array( 'Error:', $info[0], $info[2], 'SQLite:', $sql ) ), $info[1] );
 		}
-		$returned                 = $stmt->execute( $params );
-		$this->last_exec_returned = $returned;
-		if ( ! $returned ) {
-			$info                    = $stmt->errorInfo();
-			$this->last_sqlite_error = $info[0] . ' ' . $info[2];
+
+		$this->last_exec_returned = $stmt->execute( $params );
+		if ( false === $this->last_exec_returned ) {
+			$info = $stmt->errorInfo();
 			throw new PDOException( implode( ' ', array( 'Error:', $info[0], $info[2], 'SQLite:', $sql ) ), $info[1] );
 		}
 
