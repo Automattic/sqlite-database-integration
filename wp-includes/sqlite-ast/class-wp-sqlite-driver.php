@@ -1046,10 +1046,10 @@ class WP_SQLite_Driver {
 		if ( $has_order || $has_limit ) {
 			$where_subquery = 'SELECT rowid FROM ' . $this->translate_sequence(
 				array(
-					$node->get_descendant_node( 'tableReference' ),
-					$node->get_descendant_node( 'whereClause' ),
-					$node->get_descendant_node( 'orderClause' ),
-					$node->get_descendant_node( 'simpleLimitClause' ),
+					$node->get_child_node( 'tableReferenceList' ),
+					$node->get_child_node( 'whereClause' ),
+					$node->get_child_node( 'orderClause' ),
+					$node->get_child_node( 'simpleLimitClause' ),
 				)
 			);
 		}
