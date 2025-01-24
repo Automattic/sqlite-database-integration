@@ -542,8 +542,13 @@ class WP_SQLite_Information_Schema_Builder {
 
 	private function record_add_column( string $table_name, string $column_name, WP_Parser_Node $node ): void {
 		$position = $this->query(
-			'SELECT MAX(ordinal_position) FROM _mysql_information_schema_columns WHERE table_name = ?',
-			array( $table_name )
+			'
+				SELECT MAX(ordinal_position)
+				FROM _mysql_information_schema_columns
+				WHERE table_schema = ?
+				AND table_name = ?
+			',
+			array( $this->db_name, $table_name )
 		)->fetchColumn();
 
 		$column_data = $this->extract_column_data( $table_name, $column_name, $node, (int) $position + 1 );
@@ -566,8 +571,9 @@ class WP_SQLite_Information_Schema_Builder {
 			'_mysql_information_schema_columns',
 			$column_data,
 			array(
-				'table_name'  => $table_name,
-				'column_name' => $column_name,
+				'table_schema' => $this->db_name,
+				'table_name'   => $table_name,
+				'column_name'  => $column_name,
 			)
 		);
 
@@ -579,8 +585,9 @@ class WP_SQLite_Information_Schema_Builder {
 					'column_name' => $new_column_name,
 				),
 				array(
-					'table_name'  => $table_name,
-					'column_name' => $column_name,
+					'table_schema' => $this->db_name,
+					'table_name'   => $table_name,
+					'column_name'  => $column_name,
 				)
 			);
 		}
@@ -611,8 +618,9 @@ class WP_SQLite_Information_Schema_Builder {
 		$this->delete_values(
 			'_mysql_information_schema_columns',
 			array(
-				'table_name'  => $table_name,
-				'column_name' => $column_name,
+				'table_schema' => $this->db_name,
+				'table_name'   => $table_name,
+				'column_name'  => $column_name,
 			)
 		);
 
@@ -632,8 +640,9 @@ class WP_SQLite_Information_Schema_Builder {
 		$this->delete_values(
 			'_mysql_information_schema_statistics',
 			array(
-				'table_name'  => $table_name,
-				'column_name' => $column_name,
+				'table_schema' => $this->db_name,
+				'table_name'   => $table_name,
+				'column_name'  => $column_name,
 			)
 		);
 
@@ -646,8 +655,9 @@ class WP_SQLite_Information_Schema_Builder {
 		$this->delete_values(
 			'_mysql_information_schema_statistics',
 			array(
-				'table_name' => $table_name,
-				'index_name' => $index_name,
+				'table_schema' => $this->db_name,
+				'table_name'   => $table_name,
+				'index_name'   => $index_name,
 			)
 		);
 		$this->sync_column_key_info( $table_name );
@@ -692,10 +702,11 @@ class WP_SQLite_Information_Schema_Builder {
 				'
 					SELECT column_name, data_type, is_nullable, character_maximum_length
 					FROM _mysql_information_schema_columns
-					WHERE table_name = ?
+					WHERE table_schema = ?
+					AND table_name = ?
 					AND column_name IN (' . implode( ',', array_fill( 0, count( $column_names ), '?' ) ) . ')
 				',
-				array_merge( array( $table_name ), $column_names )
+				array_merge( array( $this->db_name, $table_name ), $column_names )
 			)->fetchAll( PDO::FETCH_ASSOC );
 		} else {
 			$column_info = array();
