@@ -3,10 +3,6 @@
 require_once __DIR__ . '/WP_SQLite_Translator_Tests.php';
 require_once __DIR__ . '/../wp-includes/sqlite-ast/class-wp-sqlite-driver.php';
 require_once __DIR__ . '/../wp-includes/sqlite-ast/class-wp-sqlite-information-schema-builder.php';
-require_once __DIR__ . '/../wp-includes/sqlite-ast/class-wp-sqlite-expression.php';
-require_once __DIR__ . '/../wp-includes/sqlite-ast/class-wp-sqlite-token-factory.php';
-require_once __DIR__ . '/../wp-includes/sqlite-ast/class-wp-sqlite-token.php';
-require_once __DIR__ . '/../wp-includes/sqlite-ast/class-wp-sqlite-query-builder.php';
 
 use PHPUnit\Framework\TestCase;
 use WIP\WP_SQLite_Driver;
