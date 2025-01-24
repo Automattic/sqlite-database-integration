@@ -2005,13 +2005,13 @@ class WP_SQLite_Driver {
 	private function get_sqlite_create_table_statement( string $table_name, ?string $new_table_name = null ): array {
 		// 1. Get table info.
 		$table_info = $this->execute_sqlite_query(
-			'
+			"
 				SELECT *
 				FROM _mysql_information_schema_tables
-				WHERE table_type = "BASE TABLE"
+				WHERE table_type = 'BASE TABLE'
 				AND table_schema = ?
 				AND table_name = ?
-			',
+			",
 			array( $this->db_name, $table_name )
 		)->fetch( PDO::FETCH_ASSOC );
 
@@ -2161,13 +2161,13 @@ class WP_SQLite_Driver {
 	private function get_mysql_create_table_statement( string $table_name ): ?string {
 		// 1. Get table info.
 		$table_info = $this->execute_sqlite_query(
-			'
+			"
 				SELECT *
 				FROM _mysql_information_schema_tables
-				WHERE table_type = "BASE TABLE"
+				WHERE table_type = 'BASE TABLE'
 				AND table_schema = ?
 				AND table_name = ?
-			',
+			",
 			array( $this->db_name, $table_name )
 		)->fetch( PDO::FETCH_ASSOC );
 
