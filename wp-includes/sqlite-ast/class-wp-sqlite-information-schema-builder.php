@@ -698,7 +698,9 @@ class WP_SQLite_Information_Schema_Builder {
 					AND column_name IN (' . implode( ',', array_fill( 0, count( $column_names ), '?' ) ) . ')
 				',
 				array_merge( array( $this->db_name, $table_name ), $column_names )
-			)->fetchAll( PDO::FETCH_ASSOC );
+			)->fetchAll(
+				PDO::FETCH_ASSOC // phpcs:ignore WordPress.DB.RestrictedClasses.mysql__PDO
+			);
 		} else {
 			$column_info = array();
 		}

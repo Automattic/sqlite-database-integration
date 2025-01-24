@@ -1,5 +1,10 @@
 <?php
 
+/*
+ * The SQLite driver uses PDO. Enable PDO function calls:
+ * phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO
+ */
+
 class WP_SQLite_Driver {
 	const GRAMMAR_PATH = __DIR__ . '/../../wp-includes/mysql/mysql-grammar.php';
 
@@ -387,7 +392,7 @@ class WP_SQLite_Driver {
 					);
 
 					$dsn = 'sqlite:' . FQDB;
-					$pdo = new PDO( $dsn, null, null, $options ); // phpcs:ignore WordPress.DB.RestrictedClasses
+					$pdo = new PDO( $dsn, null, null, $options );
 				} catch ( PDOException $ex ) {
 					$status = $ex->getCode();
 					if ( self::SQLITE_BUSY === $status || self::SQLITE_LOCKED === $status ) {
@@ -414,7 +419,7 @@ class WP_SQLite_Driver {
 		WP_SQLite_PDO_User_Defined_Functions::register_for( $pdo );
 
 		// MySQL data comes across stringified by default.
-		$pdo->setAttribute( PDO::ATTR_STRINGIFY_FETCHES, true ); // phpcs:ignore WordPress.DB.RestrictedClasses.mysql__PDO
+		$pdo->setAttribute( PDO::ATTR_STRINGIFY_FETCHES, true );
 
 		$this->pdo = $pdo;
 
@@ -480,7 +485,7 @@ class WP_SQLite_Driver {
 	 * @throws Exception    If the query could not run.
 	 * @throws PDOException If the translated query could not run.
 	 */
-	public function query( string $query, $fetch_mode = PDO::FETCH_OBJ, ...$fetch_mode_args ) { // phpcs:ignore WordPress.DB.RestrictedClasses
+	public function query( string $query, $fetch_mode = PDO::FETCH_OBJ, ...$fetch_mode_args ) {
 		$this->flush();
 		if ( function_exists( 'apply_filters' ) ) {
 			/**
