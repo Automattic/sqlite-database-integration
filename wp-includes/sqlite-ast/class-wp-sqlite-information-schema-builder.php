@@ -668,21 +668,6 @@ class WP_SQLite_Information_Schema_Builder {
 			throw new \Exception( 'FOREIGN KEY and CHECK constraints are not supported yet.' );
 		}
 
-		// Fetch column info.
-		$column_info = $this->query(
-			'
-				SELECT column_name, data_type, is_nullable, character_maximum_length
-				FROM _mysql_information_schema_columns
-				WHERE table_name = ?
-			',
-			array( $table_name )
-		)->fetchAll( PDO::FETCH_ASSOC );
-
-		$column_info_map = array_combine(
-			array_column( $column_info, 'COLUMN_NAME' ),
-			$column_info
-		);
-
 		// Get key parts.
 		$key_list = $node->get_child_node( 'keyListVariants' )->get_child();
 		if ( 'keyListWithExpression' === $key_list->rule_name ) {
@@ -694,6 +679,33 @@ class WP_SQLite_Information_Schema_Builder {
 			$key_parts = $key_list->get_descendant_nodes( 'keyPart' );
 		}
 
+		// Get index column names.
+		$key_part_column_names = array();
+		foreach ( $key_parts as $key_part ) {
+			$key_part_column_names[] = $this->get_index_column_name( $key_part );
+		}
+
+		// Fetch column info.
+		$column_names = array_filter( $key_part_column_names );
+		if ( count( $column_names ) > 0 ) {
+			$column_info = $this->query(
+				'
+					SELECT column_name, data_type, is_nullable, character_maximum_length
+					FROM _mysql_information_schema_columns
+					WHERE table_name = ?
+					AND column_name IN (' . implode( ',', array_fill( 0, count( $column_names ), '?' ) ) . ')
+				',
+				array_merge( array( $table_name ), $column_names )
+			)->fetchAll( PDO::FETCH_ASSOC );
+		} else {
+			$column_info = array();
+		}
+
+		$column_info_map = array_combine(
+			array_column( $column_info, 'COLUMN_NAME' ),
+			$column_info
+		);
+
 		// Get first index column data type (needed for index type).
 		$first_column_name  = $this->get_index_column_name( $key_parts[0] );
 		$first_column_type  = $column_info_map[ $first_column_name ]['DATA_TYPE'] ?? null;
@@ -704,8 +716,8 @@ class WP_SQLite_Information_Schema_Builder {
 		$index_type = $this->get_index_type( $node, $keyword, $has_spatial_column );
 
 		$seq_in_index = 1;
-		foreach ( $key_parts as $key_part ) {
-			$column_name = $this->get_index_column_name( $key_part );
+		foreach ( $key_parts as $i => $key_part ) {
+			$column_name = $key_part_column_names[ $i ];
 			$collation   = $this->get_index_column_collation( $key_part, $index_type );
 			if (
 				'PRIMARY' === $index_name
