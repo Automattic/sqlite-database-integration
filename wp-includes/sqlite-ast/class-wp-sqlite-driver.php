@@ -1200,6 +1200,11 @@ class WP_SQLite_Driver {
 			array( $this->db_name, $table_name )
 		)->fetchAll( PDO::FETCH_COLUMN );
 
+		// Preserve ROWIDs.
+		// This also addresses a special case when all original columns are dropped
+		// and there is nothing to copy. We'll always have at least the ROWID column.
+		array_unshift( $column_names, 'rowid' );
+
 		// Track column renames and removals.
 		$column_map = array_combine( $column_names, $column_names );
 		foreach ( $node->get_descendant_nodes( 'alterListItem' ) as $action ) {
