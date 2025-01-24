@@ -4,7 +4,6 @@ require_once __DIR__ . '/../wp-includes/sqlite-ast/class-wp-sqlite-driver.php';
 require_once __DIR__ . '/../wp-includes/sqlite-ast/class-wp-sqlite-information-schema-builder.php';
 
 use PHPUnit\Framework\TestCase;
-use WIP\WP_SQLite_Driver;
 
 class WP_SQLite_Driver_Translation_Tests extends TestCase {
 	const GRAMMAR_PATH = __DIR__ . '/../wp-includes/mysql/mysql-grammar.php';

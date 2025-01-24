@@ -1,20 +1,5 @@
 <?php
 
-// @TODO: Remove the namespace and use statements when replacing the old driver.
-namespace WIP;
-
-use Exception;
-use PDO;
-use PDOException;
-use PDOStatement;
-use SQLite3;
-use WP_MySQL_Lexer;
-use WP_MySQL_Parser;
-use WP_MySQL_Token;
-use WP_Parser_Grammar;
-use WP_Parser_Node;
-use WP_SQLite_PDO_User_Defined_Functions;
-
 class WP_SQLite_Driver {
 	const GRAMMAR_PATH = __DIR__ . '/../../wp-includes/mysql/mysql-grammar.php';
 

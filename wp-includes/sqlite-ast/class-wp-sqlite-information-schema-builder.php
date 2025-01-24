@@ -1,14 +1,5 @@
 <?php
 
-// @TODO: Remove the namespace and use statements when replacing the old driver.
-namespace WIP;
-
-use PDO;
-use PDOStatement;
-use WP_MySQL_Lexer;
-use WP_MySQL_Token;
-use WP_Parser_Node;
-
 class WP_SQLite_Information_Schema_Builder {
 	/**
 	 * SQL definitions for tables that emulate MySQL "information_schema".
