@@ -229,7 +229,20 @@ class WP_SQLite_DB extends wpdb {
 		if ( isset( $GLOBALS['@pdo'] ) ) {
 			$pdo = $GLOBALS['@pdo'];
 		}
-		$this->dbh        = new WP_SQLite_Translator( $pdo );
+		if ( defined( 'WP_SQLITE_AST_DRIVER' ) && WP_SQLITE_AST_DRIVER ) {
+			require_once __DIR__ . '/../../wp-includes/parser/class-wp-parser-grammar.php';
+			require_once __DIR__ . '/../../wp-includes/parser/class-wp-parser.php';
+			require_once __DIR__ . '/../../wp-includes/parser/class-wp-parser-node.php';
+			require_once __DIR__ . '/../../wp-includes/parser/class-wp-parser-token.php';
+			require_once __DIR__ . '/../../wp-includes/mysql/class-wp-mysql-token.php';
+			require_once __DIR__ . '/../../wp-includes/mysql/class-wp-mysql-lexer.php';
+			require_once __DIR__ . '/../../wp-includes/mysql/class-wp-mysql-parser.php';
+			require_once __DIR__ . '/../../wp-includes/sqlite-ast/class-wp-sqlite-driver.php';
+			require_once __DIR__ . '/../../wp-includes/sqlite-ast/class-wp-sqlite-information-schema-builder.php';
+			$this->dbh = new WP_SQLite_Driver( 'wp', $pdo );
+		} else {
+			$this->dbh = new WP_SQLite_Translator( $pdo );
+		}
 		$this->last_error = $this->dbh->get_error_message();
 		if ( $this->last_error ) {
 			return false;
