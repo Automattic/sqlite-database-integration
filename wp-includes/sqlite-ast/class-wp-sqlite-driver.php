@@ -1131,17 +1131,19 @@ class WP_SQLite_Driver {
 
 			// 4. Execute DELETE statements for each table.
 			$rows = 0;
-			foreach ( $table_aliases as $table ) {
-				$this->execute_sqlite_query(
-					sprintf(
-						'DELETE FROM %s AS %s WHERE rowid IN ( %s )',
-						$this->quote_sqlite_identifier( $alias_map[ $table ] ),
-						$this->quote_sqlite_identifier( $table ),
-						implode( ', ', array_column( $ids, "{$table}_rowid" ) )
-					)
-				);
-				$this->set_result_from_affected_rows();
-				$rows += $this->affected_rows;
+			if ( count( $ids ) > 0 ) {
+				foreach ( $table_aliases as $table ) {
+					$this->execute_sqlite_query(
+						sprintf(
+							'DELETE FROM %s AS %s WHERE rowid IN ( %s )',
+							$this->quote_sqlite_identifier( $alias_map[ $table ] ),
+							$this->quote_sqlite_identifier( $table ),
+							implode( ', ', array_column( $ids, "{$table}_rowid" ) )
+						)
+					);
+					$this->set_result_from_affected_rows();
+					$rows += $this->affected_rows;
+				}
 			}
 
 			$this->set_result_from_affected_rows( $rows );
