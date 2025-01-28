@@ -3598,4 +3598,63 @@ QUERY
 		$this->assertQuery( "INSERT INTO t (name) VALUES ('b')" );
 		$this->assertEquals( 2, $this->engine->get_insert_id() );
 	}
+
+	public function testCharLength(): void {
+		$this->assertQuery(
+			'CREATE TABLE t (
+				ID INTEGER PRIMARY KEY AUTO_INCREMENT,
+				name VARCHAR(20)
+			);'
+		);
+
+		$this->assertQuery( "INSERT INTO t (name) VALUES ('a')" );
+		$this->assertQuery( "INSERT INTO t (name) VALUES ('ab')" );
+		$this->assertQuery( "INSERT INTO t (name) VALUES ('abc')" );
+
+		$this->assertQuery( 'SELECT CHAR_LENGTH(name) AS len FROM t' );
+		$this->assertEquals(
+			array(
+				(object) array( 'len' => '1' ),
+				(object) array( 'len' => '2' ),
+				(object) array( 'len' => '3' ),
+			),
+			$this->engine->get_query_results()
+		);
+	}
+
+	public function _testAsdf() {
+		$this->assertQuery(
+			'CREATE TABLE t (id INT)'
+		);
+		$this->assertQuery(
+			'INSERT INTO t (id) VALUES (1)'
+		);
+		$this->assertQuery(
+			'SELECT non_existent_column FROM t LIMIT 0'
+		);
+		var_dump( $this->engine->executed_sqlite_queries );
+		var_dump( $this->engine->get_error_message() );
+		$this->assertCount( 1, $this->engine->get_query_results() );
+	}
+
+	public function _testXyz() {
+		$this->assertQuery(
+			"INSERT INTO wp_actionscheduler_actions ( `hook`, `status`, `scheduled_date_gmt`, `scheduled_date_local`, `schedule`, `group_id`, `priority`, `args` ) SELECT 'action_scheduler/migration_hook', 'pending', '2025-01-28 15:14:01', '2025-01-28 15:14:01', 'O:30:\"ActionScheduler_SimpleSchedule\":2:{s:22:\"\0*\0scheduled_timestamp\";i:1738077241;s:41:\"\0ActionScheduler_SimpleSchedule\0timestamp\";i:1738077241;}', 2, 10, '[]' FROM DUAL WHERE ( SELECT NULL FROM DUAL ) IS NULL"
+		);
+	}
+
+	public function testAaa() {
+		$this->assertQuery(
+			'
+			CREATE TABLE t (
+				id int(11) unsigned NOT NULL AUTO_INCREMENT,
+				name varchar(90) NOT NULL,
+				type varchar(90) NOT NULL DEFAULT \'default\',
+				description varchar(250) NOT NULL DEFAULT \'\',
+				created_at timestamp NULL,
+				updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+			)
+			'
+		);
+	}
 }

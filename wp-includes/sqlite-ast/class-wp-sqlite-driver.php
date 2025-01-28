@@ -1999,6 +1999,9 @@ class WP_SQLite_Driver {
 					return sprintf( 'CAST(STRFTIME(%s, %s) AS FLOAT)', $format, $date );
 				}
 				return sprintf( 'STRFTIME(%s, %s)', $format, $date );
+			case 'CHAR_LENGTH':
+				// @TODO LENGTH and CHAR_LENGTH aren't always the same in MySQL for utf8 characters.
+				return 'LENGTH(' . $args[0] . ')';
 			case 'CONCAT':
 				return '(' . implode( ' || ', $args ) . ')';
 			case 'FOUND_ROWS':
