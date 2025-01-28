@@ -3215,7 +3215,7 @@ QUERY
 		$this->assertQuery( 'INSERT INTO _tmp_table (name) VALUES (NULL);' );
 		$this->assertQuery( "INSERT INTO _tmp_table (name) VALUES ('special%chars');" );
 		$this->assertQuery( "INSERT INTO _tmp_table (name) VALUES ('special_chars');" );
-		$this->assertQuery( "INSERT INTO _tmp_table (name) VALUES ('special\\chars');" );
+		$this->assertQuery( "INSERT INTO _tmp_table (name) VALUES ('special\\\\chars');" );
 		$this->assertQuery( "INSERT INTO _tmp_table (name) VALUES ('aste*risk');" );
 		$this->assertQuery( "INSERT INTO _tmp_table (name) VALUES ('question?mark');" );
 
