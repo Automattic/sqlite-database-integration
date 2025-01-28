@@ -1156,8 +1156,9 @@ class WP_SQLite_Driver {
 	}
 
 	private function execute_create_table_statement( WP_Parser_Node $node ): void {
-		$is_temporary = $node->get_child_node()->has_child_token( WP_MySQL_Lexer::TEMPORARY_SYMBOL );
-		$element_list = $node->get_descendant_node( 'tableElementList' );
+		$subnode      = $node->get_child_node();
+		$is_temporary = $subnode->has_child_token( WP_MySQL_Lexer::TEMPORARY_SYMBOL );
+		$element_list = $subnode->get_child_node( 'tableElementList' );
 		if ( true === $is_temporary || null === $element_list ) {
 			$query = $this->translate( $node ) . ' STRICT';
 			$this->execute_sqlite_query( $query );
@@ -1166,8 +1167,20 @@ class WP_SQLite_Driver {
 		}
 
 		$table_name = $this->unquote_sqlite_identifier(
-			$this->translate( $node->get_descendant_node( 'tableName' ) )
+			$this->translate( $subnode->get_child_node( 'tableName' ) )
 		);
+
+		if ( $subnode->has_child_node( 'ifNotExists' ) ) {
+			$table_exists = $this->execute_sqlite_query(
+				'SELECT 1 FROM _mysql_information_schema_tables WHERE table_schema = ? AND table_name = ?',
+				array( $this->db_name, $table_name )
+			)->fetchColumn();
+
+			if ( $table_exists ) {
+				$this->set_result_from_affected_rows( 0 );
+				return;
+			}
+		}
 
 		// Save information to information schema tables.
 		$this->information_schema_builder->record_create_table( $node );

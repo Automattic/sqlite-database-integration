@@ -3039,6 +3039,19 @@ QUERY
 		);
 	}
 
+	public function testCreateTableIfNotExists(): void {
+		$this->assertQuery(
+			'CREATE TABLE t (ID INTEGER, name TEXT)'
+		);
+		$this->assertQuery(
+			'CREATE TABLE IF NOT EXISTS t (ID INTEGER, name TEXT)'
+		);
+		$this->assertQuery(
+			'CREATE TABLE t (ID INTEGER, name TEXT)',
+			'table `t` already exists'
+		);
+	}
+
 	public function testTranslatesComplexDelete() {
 		$this->sqlite->query(
 			"CREATE TABLE wptests_dummy (
