@@ -1134,9 +1134,9 @@ class WP_SQLite_Driver {
 			foreach ( $table_aliases as $table ) {
 				$this->execute_sqlite_query(
 					sprintf(
-						'DELETE FROM "%s" AS %s WHERE rowid IN ( %s )',
-						$alias_map[ $table ],
-						$table,
+						'DELETE FROM %s AS %s WHERE rowid IN ( %s )',
+						$this->quote_sqlite_identifier( $alias_map[ $table ] ),
+						$this->quote_sqlite_identifier( $table ),
 						implode( ', ', array_column( $ids, "{$table}_rowid" ) )
 					)
 				);
@@ -1615,7 +1615,9 @@ class WP_SQLite_Driver {
 			case 'dotIdentifier':
 				return $this->translate_sequence( $ast->get_children(), '' );
 			case 'identifierKeyword':
-				return '"' . $this->translate( $ast->get_child() ) . '"';
+				return '`' . $this->translate( $ast->get_child() ) . '`';
+			case 'pureIdentifier':
+				return $this->translate_pure_identifier( $ast );
 			case 'textStringLiteral':
 				return $this->translate_string_literal( $ast );
 			case 'dataType':
@@ -1712,13 +1714,6 @@ class WP_SQLite_Driver {
 		switch ( $token->id ) {
 			case WP_MySQL_Lexer::EOF:
 				return null;
-			case WP_MySQL_Lexer::IDENTIFIER:
-				return '"' . $token->value . '"';
-			case WP_MySQL_Lexer::BACK_TICK_QUOTED_ID:
-				$value = substr( $token->value, 1, -1 );   // remove backticks
-				$value = str_replace( '``', '`', $value ); // unescape from MySQL
-				$value = str_replace( '"', '""', $value ); // escape for SQLite
-				return '"' . $value . '"';
 			case WP_MySQL_Lexer::AUTO_INCREMENT_SYMBOL:
 				return 'AUTOINCREMENT';
 			case WP_MySQL_Lexer::BINARY_SYMBOL:
@@ -1823,13 +1818,29 @@ class WP_SQLite_Driver {
 		return "'" . str_replace( "'", "''", $value ) . "'";
 	}
 
+	private function translate_pure_identifier( WP_Parser_Node $node ): string {
+		$token = $node->get_child_token();
+
+		if ( WP_MySQL_Lexer::DOUBLE_QUOTED_TEXT === $token->id ) {
+			$value = substr( $token->value, 1, -1 );
+			$value = str_replace( '""', '"', $value );
+		} elseif ( WP_MySQL_Lexer::BACK_TICK_QUOTED_ID === $token->id ) {
+			$value = substr( $token->value, 1, -1 );
+			$value = str_replace( '``', '`', $value );
+		} else {
+			$value = $token->value;
+		}
+
+		return '`' . str_replace( '`', '``', $value ) . '`';
+	}
+
 	private function translate_simple_expr( WP_Parser_Node $node ): string {
 		$token = $node->get_child_token();
 
 		// Translate "VALUES(col)" to "excluded.col" in ON DUPLICATE KEY UPDATE.
 		if ( null !== $token && WP_MySQL_Lexer::VALUES_SYMBOL === $token->id ) {
 			return sprintf(
-				'"excluded".%s',
+				'`excluded`.%s',
 				$this->translate( $node->get_child_node( 'simpleIdentifier' ) )
 			);
 		}
@@ -2187,11 +2198,16 @@ class WP_SQLite_Driver {
 
 				// Prefix the original index name with the table name.
 				// This is to avoid conflicting index names in SQLite.
-				$index_name = $table_name . '__' . $info['INDEX_NAME'];
+				$index_name = $this->quote_sqlite_identifier(
+					$table_name . '__' . $info['INDEX_NAME']
+				);
 
-				$query  = sprintf( 'CREATE %sINDEX', $is_unique ? 'UNIQUE ' : '' );
-				$query .= sprintf( ' "%s"', $index_name );
-				$query .= sprintf( ' ON "%s" (', $table_name );
+				$query  = sprintf(
+					'CREATE %sINDEX %s ON %s (',
+					$is_unique ? 'UNIQUE ' : '',
+					$index_name,
+					$this->quote_sqlite_identifier( $table_name )
+				);
 				$query .= implode(
 					', ',
 					array_map(
@@ -2361,16 +2377,16 @@ class WP_SQLite_Driver {
 
 	private function unquote_sqlite_identifier( string $quoted_identifier ): string {
 		$first_byte = $quoted_identifier[0] ?? null;
-		if ( '"' === $first_byte ) {
+		if ( '"' === $first_byte || '`' === $first_byte ) {
 			$unquoted = substr( $quoted_identifier, 1, -1 );
 		} else {
 			$unquoted = $quoted_identifier;
 		}
-		return str_replace( '""', '"', $unquoted );
+		return str_replace( $first_byte . $first_byte, $first_byte, $unquoted );
 	}
 
 	private function quote_sqlite_identifier( string $unquoted_identifier ): string {
-		return '"' . str_replace( '"', '""', $unquoted_identifier ) . '"';
+		return '`' . str_replace( '`', '``', $unquoted_identifier ) . '`';
 	}
 
 	private function quote_mysql_identifier( string $unquoted_identifier ): string {
