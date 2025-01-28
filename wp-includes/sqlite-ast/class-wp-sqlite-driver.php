@@ -1006,6 +1006,15 @@ class WP_SQLite_Driver {
 		$query = implode( ' ', $parts );
 		$this->execute_sqlite_query( $query );
 		$this->set_result_from_affected_rows();
+
+		$this->last_insert_id = $this->pdo->lastInsertId();
+		if ( is_numeric( $this->last_insert_id ) ) {
+			$this->last_insert_id = (int) $this->last_insert_id;
+		}
+
+		if ( function_exists( 'apply_filters' ) ) {
+			$this->last_insert_id = apply_filters( 'sqlite_last_insert_id', $this->last_insert_id, $this->table_name );
+		}
 	}
 
 	private function execute_update_statement( WP_Parser_Node $node ): void {

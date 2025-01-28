@@ -3562,4 +3562,19 @@ QUERY
 			array( '@@sEssIOn.sqL_moDe' ),
 		);
 	}
+
+	public function testLastInsertId(): void {
+		$this->assertQuery(
+			'CREATE TABLE t (
+				ID INTEGER PRIMARY KEY AUTO_INCREMENT,
+				name VARCHAR(20)
+			);'
+		);
+
+		$this->assertQuery( "INSERT INTO t (name) VALUES ('a')" );
+		$this->assertEquals( 1, $this->engine->get_insert_id() );
+
+		$this->assertQuery( "INSERT INTO t (name) VALUES ('b')" );
+		$this->assertEquals( 2, $this->engine->get_insert_id() );
+	}
 }
