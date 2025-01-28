@@ -1152,7 +1152,7 @@ class WP_SQLite_Driver {
 		$is_temporary = $node->get_child_node()->has_child_token( WP_MySQL_Lexer::TEMPORARY_SYMBOL );
 		$element_list = $node->get_descendant_node( 'tableElementList' );
 		if ( true === $is_temporary || null === $element_list ) {
-			$query = $this->translate( $node );
+			$query = $this->translate( $node ) . ' STRICT';
 			$this->execute_sqlite_query( $query );
 			$this->set_result_from_affected_rows();
 			return;
@@ -2144,7 +2144,7 @@ class WP_SQLite_Driver {
 			$this->quote_sqlite_identifier( $new_table_name ?? $table_name )
 		);
 		$create_table_query .= implode( ",\n", $rows );
-		$create_table_query .= "\n)";
+		$create_table_query .= "\n) STRICT";
 		return array_merge( array( $create_table_query ), $create_index_queries, $on_update_queries );
 	}
 
