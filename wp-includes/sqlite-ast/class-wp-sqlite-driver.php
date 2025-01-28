@@ -1928,6 +1928,8 @@ class WP_SQLite_Driver {
 					return sprintf( 'CAST(STRFTIME(%s, %s) AS FLOAT)', $format, $date );
 				}
 				return sprintf( 'STRFTIME(%s, %s)', $format, $date );
+			case 'CONCAT':
+				return '(' . implode( ' || ', $args ) . ')';
 			case 'FOUND_ROWS':
 				// @TODO: The following implementation with an alias assumes
 				//        that the function is used in the SELECT field list.
