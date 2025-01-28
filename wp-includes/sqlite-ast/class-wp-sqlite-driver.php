@@ -1401,6 +1401,9 @@ class WP_SQLite_Driver {
 			case WP_MySQL_Lexer::TABLES_SYMBOL:
 				$this->execute_show_tables_statement( $node );
 				break;
+			case WP_MySQL_Lexer::VARIABLES_SYMBOL:
+				$this->results = true;
+				return;
 			default:
 				throw new Exception(
 					sprintf(

@@ -2793,6 +2793,14 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		);
 	}
 
+	public function testShowVarianles(): void {
+		$this->assertQuery( 'SHOW VARIABLES' );
+		$this->assertQuery( "SHOW VARIABLES LIKE 'version'" );
+		$this->assertQuery( "SHOW VARIABLES WHERE Variable_name = 'version'" );
+		$this->assertQuery( 'SHOW GLOBAL VARIABLES' );
+		$this->assertQuery( 'SHOW SESSION VARIABLES' );
+	}
+
 	public function testInsertOnDuplicateKeyCompositePk() {
 		$result = $this->assertQuery(
 			'CREATE TABLE wptests_term_relationships (
