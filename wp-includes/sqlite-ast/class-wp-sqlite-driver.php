@@ -838,7 +838,7 @@ class WP_SQLite_Driver {
 				break;
 			case 'insertStatement':
 				$this->query_type = 'INSERT';
-				$this->execute_insert_statement( $ast );
+				$this->execute_insert_or_replace_statement( $ast );
 				break;
 			case 'updateStatement':
 				$this->query_type = 'UPDATE';
@@ -846,9 +846,7 @@ class WP_SQLite_Driver {
 				break;
 			case 'replaceStatement':
 				$this->query_type = 'REPLACE';
-				$query            = $this->translate( $ast );
-				$this->execute_sqlite_query( $query );
-				$this->set_result_from_affected_rows();
+				$this->execute_insert_or_replace_statement( $ast );
 				break;
 			case 'deleteStatement':
 				$this->query_type = 'DELETE';
@@ -994,7 +992,7 @@ class WP_SQLite_Driver {
 		);
 	}
 
-	private function execute_insert_statement( WP_Parser_Node $node ): void {
+	private function execute_insert_or_replace_statement( WP_Parser_Node $node ): void {
 		$parts = array();
 		foreach ( $node->get_children() as $child ) {
 			if ( $child instanceof WP_MySQL_Token && WP_MySQL_Lexer::IGNORE_SYMBOL === $child->id ) {
