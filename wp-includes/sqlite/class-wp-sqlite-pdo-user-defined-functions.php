@@ -777,33 +777,7 @@ class WP_SQLite_PDO_User_Defined_Functions {
 		}
 
 		/*
-		 * 1. Normalize escaping of "%" and "_" characters.
-		 *
-		 * MySQL has unusual handling for "\%" and "\_" in all string literals.
-		 * While other sequences follow the C-style escaping ("\?" is "?", etc.),
-		 * "\%" resolves to "\%" and "\_" resolves to "\_" (unlike in C strings).
-		 *
-		 * This means that "\%" behaves like "\\%", and "\_" behaves like "\\_".
-		 * To preserve this behavior, we need to add a second backslash in cases
-		 * where only one is used. To do so correctly, we need to:
-		 *
-		 *  1. Skip all double backslash patterns (as "\\" resolves to "\").
-		 *  2. Add an extra backslash when "\%" or "\_" follows right after.
-		 *
-		 * This may be related to: https://bugs.mysql.com/bug.php?id=84118
-		 */
-		$pattern = preg_replace( '/(^|[^\\\\](?:\\\\{2}))*(\\\\[%_])/', '$1\\\\$2', $pattern );
-
-		/*
-		 * 2. Unescape C-style escape sequences.
-		 *
-		 * MySQL string literals are represented using C-style encoded strings,
-		 * but the GLOB pattern in SQLite doesn't support such escaping.
-		 */
-		$pattern = stripcslashes( $pattern );
-
-		/*
-		 * 3. Escape characters that have special meaning in GLOB patterns.
+		 * 1. Escape characters that have special meaning in GLOB patterns.
 		 *
 		 * We need to:
 		 *  1. Escape "]" as "[]]" to avoid interpreting "[...]" as a character class.
@@ -815,7 +789,7 @@ class WP_SQLite_PDO_User_Defined_Functions {
 		$pattern = str_replace( '?', '[?]', $pattern );
 
 		/*
-		 * 4. Convert LIKE wildcards to GLOB wildcards ("%" -> "*", "_" -> "?").
+		 * 2. Convert LIKE wildcards to GLOB wildcards ("%" -> "*", "_" -> "?").
 		 *
 		 * We need to convert them only when they don't follow any backslashes,
 		 * or when they follow an even number of backslashes (as "\\" is "\").
@@ -824,7 +798,7 @@ class WP_SQLite_PDO_User_Defined_Functions {
 		$pattern = preg_replace( '/(^|[^\\\\](?:\\\\{2})*)_/', '$1?', $pattern );
 
 		/*
-		 * 5. Unescape LIKE escape sequences.
+		 * 3. Unescape LIKE escape sequences.
 		 *
 		 * While in MySQL LIKE patterns, a backslash is usually used to escape
 		 * special characters ("%", "_", and "\"), it works with all characters.

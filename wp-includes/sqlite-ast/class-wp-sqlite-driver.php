@@ -1617,28 +1617,7 @@ class WP_SQLite_Driver {
 			case 'identifierKeyword':
 				return '"' . $this->translate( $ast->get_child() ) . '"';
 			case 'textStringLiteral':
-				$token = $ast->get_child_token();
-
-				// 1. Remove bounding quotes.
-				$quote = $token->value[0];
-				$value = substr( $token->value, 1, -1 );
-
-				// 2. Unescape quotes within the string.
-				$value = str_replace( $quote . $quote, $quote, $value );
-				$value = str_replace( '\\' . $quote, $quote, $value );
-
-				// 3. Translate datetime literals.
-				//    Process only strings that could possibly represent a datetime
-				//    literal ("YYYY-MM-DDTHH:MM:SS", "YYYY-MM-DDTHH:MM:SSZ", etc.).
-				if ( strlen( $value ) >= 19 && is_numeric( $value[0] ) ) {
-					$value = $this->translate_datetime_literal( $value );
-				}
-
-				// 4. Remove null characters.
-				$value = str_replace( "\0", '', $value );
-
-				// 5. Escape and add quotes.
-				return "'" . str_replace( "'", "''", $value ) . "'";
+				return $this->translate_string_literal( $ast );
 			case 'dataType':
 			case 'nchar':
 				$child = $ast->get_child();
@@ -1777,6 +1756,71 @@ class WP_SQLite_Driver {
 			return null;
 		}
 		return implode( $separator, $parts );
+	}
+
+	private function translate_string_literal( WP_Parser_Node $node ): string {
+		$token = $node->get_child_token();
+
+		/*
+		 * 1. Remove bounding quotes.
+		 */
+		$quote = $token->value[0];
+		$value = substr( $token->value, 1, -1 );
+
+		/*
+		 * 2. Normalize escaping of "%" and "_" characters.
+		 *
+		 * MySQL has unusual handling for "\%" and "\_" in all string literals.
+		 * While other sequences follow the C-style escaping ("\?" is "?", etc.),
+		 * "\%" resolves to "\%" and "\_" resolves to "\_" (unlike in C strings).
+		 *
+		 * This means that "\%" behaves like "\\%", and "\_" behaves like "\\_".
+		 * To preserve this behavior, we need to add a second backslash in cases
+		 * where only one is used. To do so correctly, we need to:
+		 *
+		 *  1. Skip all double backslash patterns (as "\\" resolves to "\").
+		 *  2. Add an extra backslash when "\%" or "\_" follows right after.
+		 *
+		 * This may be related to: https://bugs.mysql.com/bug.php?id=84118
+		 */
+		$value = preg_replace( '/(^|[^\\\\](?:\\\\{2}))*(\\\\[%_])/', '$1\\\\$2', $value );
+
+		/*
+		 * 3. Unescape quotes within the string.
+		 */
+		$value = str_replace( $quote . $quote, $quote, $value );
+
+		/*
+		 * 4. Unescape C-style escape sequences.
+		 *
+		 * MySQL string literals are represented using C-style encoded strings,
+		 * but SQLite doesn't support such escaping.
+		 *
+		 * @TODO: Handle NO_BACKSLASH_ESCAPES SQL mode.
+		 */
+		$value = stripcslashes( $value );
+
+		/*
+		 * 5. Translate datetime literals.
+		 *
+		 * Process only strings that could possibly represent a datetime
+		 * literal ("YYYY-MM-DDTHH:MM:SS", "YYYY-MM-DDTHH:MM:SSZ", etc.).
+		 */
+		if ( strlen( $value ) >= 19 && is_numeric( $value[0] ) ) {
+			$value = $this->translate_datetime_literal( $value );
+		}
+
+		/*
+		 * 6. Remove null characters.
+		 *
+		 * SQLite doesn't support null characters in strings.
+		 */
+		$value = str_replace( "\0", '', $value );
+
+		/*
+		 * 7. Escape and add quotes.
+		 */
+		return "'" . str_replace( "'", "''", $value ) . "'";
 	}
 
 	private function translate_simple_expr( WP_Parser_Node $node ): string {
