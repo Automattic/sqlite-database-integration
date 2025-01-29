@@ -73,6 +73,36 @@ class WP_SQLite_Metadata_Tests extends TestCase {
 		self::assertIsNumeric( $count );
 	}
 
+	public function testInformationSchemaTables() {
+		$result = $this->assertQuery( "SELECT * FROM information_schema.tables" );
+		$this->assertEquals(
+			array(
+				'TABLE_NAME' => '_mysql_data_types_cache',
+				'TABLE_TYPE' => 'BASE TABLE',
+				'TABLE_SCHEMA' => 'database',
+				'ENGINE' => 'InnoDB',
+				'TABLE_COLLATION' => 'utf8mb4_general_ci',
+				'TABLE_COMMENT' => '',
+				'CREATE_TABLE' => 'CREATE TABLE _mysql_data_types_cache (
+		`table` TEXT NOT NULL,
+		`column_or_index` TEXT NOT NULL,
+		`mysql_type` TEXT NOT NULL,
+		PRIMARY KEY(`table`, `column_or_index`)
+	)',
+				'AUTO_INCREMENT' => null,
+				'CREATE_TIME' => null,
+				'UPDATE_TIME' => null,
+				'CHECK_TIME' => null,
+				'TABLE_ROWS' => '0',
+				'DATA_LENGTH' => '0',
+				'INDEX_LENGTH' => '0',
+				'DATA_FREE' => '0',
+				'VERSION' => '10',
+			),
+			(array) $result[0]
+		);
+	}
+
 	private function assertQuery( $sql, $error_substring = null ) {
 		$retval = $this->engine->query( $sql );
 		if ( null === $error_substring ) {
