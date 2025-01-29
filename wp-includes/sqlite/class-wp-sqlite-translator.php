@@ -1538,7 +1538,6 @@ class WP_SQLite_Translator {
 					WHERE type IN ('table', 'view'))",
 				$updated_query
 			);
-			var_dump( $updated_query );
 		} elseif (
 			// Examples: @@SESSION.sql_mode, @@GLOBAL.max_allowed_packet, @@character_set_client
 			preg_match( '/@@((SESSION|GLOBAL)\s*\.\s*)?\w+\b/i', $updated_query ) === 1 ||

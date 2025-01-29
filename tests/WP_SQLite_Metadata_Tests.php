@@ -74,21 +74,21 @@ class WP_SQLite_Metadata_Tests extends TestCase {
 	}
 
 	public function testInformationSchemaTables() {
-		$result = $this->assertQuery( "SELECT * FROM information_schema.tables" );
+		$result = $this->assertQuery( "SELECT * FROM information_schema.tables WHERE TABLE_NAME = 'wp_options'" );
 		$this->assertEquals(
 			array(
-				'TABLE_NAME' => '_mysql_data_types_cache',
+				'TABLE_NAME' => 'wp_options',
 				'TABLE_TYPE' => 'BASE TABLE',
 				'TABLE_SCHEMA' => 'database',
 				'ENGINE' => 'InnoDB',
 				'TABLE_COLLATION' => 'utf8mb4_general_ci',
 				'TABLE_COMMENT' => '',
-				'CREATE_TABLE' => 'CREATE TABLE _mysql_data_types_cache (
-		`table` TEXT NOT NULL,
-		`column_or_index` TEXT NOT NULL,
-		`mysql_type` TEXT NOT NULL,
-		PRIMARY KEY(`table`, `column_or_index`)
-	)',
+				'CREATE_TABLE' => 'CREATE TABLE "wp_options"(
+	"option_id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+  "option_name" text NOT NULL DEFAULT \'\' COLLATE NOCASE,
+  "option_value" text NOT NULL COLLATE NOCASE,
+  "autoload" text NOT NULL DEFAULT \'yes\' COLLATE NOCASE
+)',
 				'AUTO_INCREMENT' => null,
 				'CREATE_TIME' => null,
 				'UPDATE_TIME' => null,
