@@ -1508,9 +1508,37 @@ class WP_SQLite_Translator {
 		$updated_query = $this->rewriter->get_updated_query();
 
 		if ( $table_name && str_starts_with( strtolower( $table_name ), 'information_schema' ) ) {
-			$this->is_information_schema_query = true;
-			$updated_query                     = $this->get_information_schema_query( $updated_query );
-			$params                            = array();
+			// $this->is_information_schema_query = true;
+			// $updated_query                     = $this->get_information_schema_query( $updated_query );
+			// $params                            = array();
+			$updated_query = str_replace(
+				$table_name.'.tables',
+				"(SELECT
+					name as TABLE_NAME,
+					'database' as TABLE_SCHEMA,
+					CASE type
+					WHEN 'table' THEN 'BASE TABLE'
+					WHEN 'view' THEN 'VIEW'
+					ELSE type
+					END as TABLE_TYPE,
+					'InnoDB' as ENGINE,
+					'utf8mb4_general_ci' as TABLE_COLLATION,
+					'' as TABLE_COMMENT,
+					sql as CREATE_TABLE,
+					NULL as AUTO_INCREMENT,
+					NULL as CREATE_TIME,
+					NULL as UPDATE_TIME,
+					NULL as CHECK_TIME,
+					0 as TABLE_ROWS,
+					0 as DATA_LENGTH,
+					0 as INDEX_LENGTH,
+					0 as DATA_FREE,
+					10 as VERSION
+					FROM sqlite_master
+					WHERE type IN ('table', 'view'))",
+				$updated_query
+			);
+			var_dump( $updated_query );
 		} elseif (
 			// Examples: @@SESSION.sql_mode, @@GLOBAL.max_allowed_packet, @@character_set_client
 			preg_match( '/@@((SESSION|GLOBAL)\s*\.\s*)?\w+\b/i', $updated_query ) === 1 ||
@@ -3271,7 +3299,7 @@ class WP_SQLite_Translator {
 						new WP_SQLite_Token( ' ', WP_SQLite_Token::TYPE_WHITESPACE ),
 						new WP_SQLite_Token( 'ON', WP_SQLite_Token::TYPE_KEYWORD, WP_SQLite_Token::FLAG_KEYWORD_RESERVED ),
 						new WP_SQLite_Token( ' ', WP_SQLite_Token::TYPE_WHITESPACE ),
-						new WP_SQLite_Token( '"' . $this->table_name . '"', WP_SQLite_Token::TYPE_STRING, WP_SQLite_Token::FLAG_STRING_DOUBLE_QUOTES ),
+						new WP_SQLite_Token( "\"$this->table_name\"", WP_SQLite_Token::TYPE_STRING, WP_SQLite_Token::FLAG_STRING_DOUBLE_QUOTES ),
 						new WP_SQLite_Token( ' ', WP_SQLite_Token::TYPE_WHITESPACE ),
 						new WP_SQLite_Token( '(', WP_SQLite_Token::TYPE_OPERATOR ),
 					)
