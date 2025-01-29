@@ -3622,39 +3622,21 @@ QUERY
 		);
 	}
 
-	public function _testAsdf() {
+	public function testNullCharactersInStrings(): void {
 		$this->assertQuery(
-			'CREATE TABLE t (id INT)'
+			'CREATE TABLE t (id INT, name VARCHAR(20))'
 		);
 		$this->assertQuery(
-			'INSERT INTO t (id) VALUES (1)'
+			"INSERT INTO t (name) VALUES ('a\0b')"
 		);
 		$this->assertQuery(
-			'SELECT non_existent_column FROM t LIMIT 0'
+			'SELECT name FROM t'
 		);
-		var_dump( $this->engine->executed_sqlite_queries );
-		var_dump( $this->engine->get_error_message() );
-		$this->assertCount( 1, $this->engine->get_query_results() );
-	}
-
-	public function _testXyz() {
-		$this->assertQuery(
-			"INSERT INTO wp_actionscheduler_actions ( `hook`, `status`, `scheduled_date_gmt`, `scheduled_date_local`, `schedule`, `group_id`, `priority`, `args` ) SELECT 'action_scheduler/migration_hook', 'pending', '2025-01-28 15:14:01', '2025-01-28 15:14:01', 'O:30:\"ActionScheduler_SimpleSchedule\":2:{s:22:\"\0*\0scheduled_timestamp\";i:1738077241;s:41:\"\0ActionScheduler_SimpleSchedule\0timestamp\";i:1738077241;}', 2, 10, '[]' FROM DUAL WHERE ( SELECT NULL FROM DUAL ) IS NULL"
-		);
-	}
-
-	public function testAaa() {
-		$this->assertQuery(
-			'
-			CREATE TABLE t (
-				id int(11) unsigned NOT NULL AUTO_INCREMENT,
-				name varchar(90) NOT NULL,
-				type varchar(90) NOT NULL DEFAULT \'default\',
-				description varchar(250) NOT NULL DEFAULT \'\',
-				created_at timestamp NULL,
-				updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-			)
-			'
+		$this->assertEquals(
+			array(
+				(object) array( 'name' => "a\0b" ),
+			),
+			$this->engine->get_query_results()
 		);
 	}
 }

@@ -1808,16 +1808,34 @@ class WP_SQLite_Driver {
 		}
 
 		/*
-		 * 6. Remove null characters.
+		 * 6. Handle null characters.
 		 *
-		 * SQLite doesn't support null characters in strings.
+		 * SQLite doesn't fully support null characters (\u0000) in strings.
+		 * However, it can store them and read them, with some limitations.
+		 *
+		 * In PHP, null bytes are often produced by the serialize() function.
+		 * Removing them would damage the serialized data.
+		 *
+		 * There is no way to store null bytes using a string literal, so we
+		 * need to split the string and concatenate null bytes with its parts.
+		 * This will convert literals will null bytes to expressions.
+		 *
+		 * Alternatively, we could replace string literals with parameters and
+		 * pass them using prepared statements. However, that's not universally
+		 * applicable for all string literals (e.g., in default column values).
+		 *
+		 * See:
+		 *   https://www.sqlite.org/nulinstr.html
 		 */
-		$value = str_replace( "\0", '', $value );
-
-		/*
-		 * 7. Escape and add quotes.
-		 */
-		return "'" . str_replace( "'", "''", $value ) . "'";
+		$parts = array();
+		foreach ( explode( "\0", $value ) as $segment ) {
+			// Escape and quote each segment.
+			$parts[] = "'" . str_replace( "'", "''", $segment ) . "'";
+		}
+		if ( count( $parts ) > 1 ) {
+			return '(' . implode( ' || CHAR(0) || ', $parts ) . ')';
+		}
+		return $parts[0];
 	}
 
 	private function translate_pure_identifier( WP_Parser_Node $node ): string {
