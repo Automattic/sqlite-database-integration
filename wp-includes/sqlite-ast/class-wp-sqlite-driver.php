@@ -2181,8 +2181,18 @@ class WP_SQLite_Driver {
 				$query            .= ' PRIMARY KEY AUTOINCREMENT';
 			}
 			if ( null !== $column['COLUMN_DEFAULT'] ) {
-				// @TODO: Correctly quote based on the data type.
-				$query .= ' DEFAULT ' . $this->pdo->quote( $column['COLUMN_DEFAULT'] );
+				// @TODO: Handle defaults with expression values (DEFAULT_GENERATED).
+
+				// Handle DEFAULT CURRENT_TIMESTAMP. This works only with timestamp
+				// and datetime columns. For other column types, it's just a string.
+				if (
+					'CURRENT_TIMESTAMP' === $column['COLUMN_DEFAULT']
+					&& ( 'timestamp' === $column['DATA_TYPE'] || 'datetime' === $column['DATA_TYPE'] )
+				) {
+					$query .= ' DEFAULT CURRENT_TIMESTAMP';
+				} else {
+					$query .= ' DEFAULT ' . $this->pdo->quote( $column['COLUMN_DEFAULT'] );
+				}
 			}
 			$rows[] = $query;
 
@@ -2300,14 +2310,32 @@ class WP_SQLite_Driver {
 			$sql .= ' ' . $column['COLUMN_TYPE'];
 			if ( 'NO' === $column['IS_NULLABLE'] ) {
 				$sql .= ' NOT NULL';
+			} elseif ( 'timestamp' === $column['COLUMN_TYPE'] ) {
+				// Nullable "timestamp" columns dump NULL explicitly.
+				$sql .= ' NULL';
 			}
 			if ( 'auto_increment' === $column['EXTRA'] ) {
 				$sql .= ' AUTO_INCREMENT';
 			}
-			if ( null !== $column['COLUMN_DEFAULT'] ) {
-				// @TODO: Correctly quote based on the data type.
+
+			// Handle DEFAULT CURRENT_TIMESTAMP. This works only with timestamp
+			// and datetime columns. For other column types, it's just a string.
+			if (
+				'CURRENT_TIMESTAMP' === $column['COLUMN_DEFAULT']
+				&& ( 'timestamp' === $column['DATA_TYPE'] || 'datetime' === $column['DATA_TYPE'] )
+			) {
+				$sql .= ' DEFAULT CURRENT_TIMESTAMP';
+			} elseif ( null !== $column['COLUMN_DEFAULT'] ) {
 				$sql .= ' DEFAULT ' . $this->pdo->quote( $column['COLUMN_DEFAULT'] );
+			} elseif ( 'YES' === $column['IS_NULLABLE'] ) {
+				$sql .= ' DEFAULT NULL';
 			}
+
+			// Handle ON UPDATE CURRENT_TIMESTAMP.
+			if ( str_contains( $column['EXTRA'], 'on update CURRENT_TIMESTAMP' ) ) {
+				$sql .= ' ON UPDATE CURRENT_TIMESTAMP';
+			}
+
 			$rows[] = $sql;
 		}
 

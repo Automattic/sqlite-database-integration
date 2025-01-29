@@ -905,14 +905,31 @@ class WP_SQLite_Information_Schema_Builder {
 	}
 
 	private function get_column_default( WP_Parser_Node $node ): ?string {
+		$default_attr = null;
 		foreach ( $node->get_descendant_nodes( 'columnAttribute' ) as $attr ) {
 			if ( $attr->has_child_token( WP_MySQL_Lexer::DEFAULT_SYMBOL ) ) {
-				// @TODO: MySQL seems to normalize default values for numeric
-				//        columns, such as 1.0 to 1, 1e3 to 1000, etc.
-				return substr( $this->get_value( $attr ), strlen( 'DEFAULT' ) );
+				$default_attr = $attr;
 			}
 		}
-		return null;
+
+		if ( null === $default_attr ) {
+			return null;
+		}
+
+		if ( $default_attr->has_child_token( WP_MySQL_Lexer::NOW_SYMBOL ) ) {
+			return 'CURRENT_TIMESTAMP';
+		}
+
+		if (
+			$default_attr->has_child_node( 'signedLiteral' )
+			&& null !== $default_attr->get_descendant_node( 'nullLiteral' )
+		) {
+			return null;
+		}
+
+		// @TODO: MySQL seems to normalize default values for numeric
+		//        columns, such as 1.0 to 1, 1e3 to 1000, etc.
+		return $this->get_value( $default_attr->get_child_node() );
 	}
 
 	private function get_column_nullable( WP_Parser_Node $node ): string {
@@ -967,7 +984,8 @@ class WP_SQLite_Information_Schema_Builder {
 	}
 
 	private function get_column_extra( WP_Parser_Node $node ): string {
-		$extra = '';
+		$extras     = array();
+		$attributes = $node->get_descendant_nodes( 'columnAttribute' );
 
 		// SERIAL
 		$data_type = $node->get_descendant_node( 'dataType' );
@@ -975,7 +993,17 @@ class WP_SQLite_Information_Schema_Builder {
 			return 'auto_increment';
 		}
 
-		foreach ( $node->get_descendant_nodes( 'columnAttribute' ) as $attr ) {
+		// Check whether DEFAULT value is an expression.
+		foreach ( $attributes as $attr ) {
+			if (
+				$attr->has_child_token( WP_MySQL_Lexer::DEFAULT_SYMBOL )
+				&& $attr->has_child_node( 'exprWithParentheses' )
+			) {
+				$extras[] = 'DEFAULT_GENERATED';
+			}
+		}
+
+		foreach ( $attributes as $attr ) {
 			if ( $attr->has_child_token( WP_MySQL_Lexer::AUTO_INCREMENT_SYMBOL ) ) {
 				return 'auto_increment';
 			}
@@ -983,16 +1011,16 @@ class WP_SQLite_Information_Schema_Builder {
 				$attr->has_child_token( WP_MySQL_Lexer::ON_SYMBOL )
 				&& $attr->has_child_token( WP_MySQL_Lexer::UPDATE_SYMBOL )
 			) {
-				return 'on update CURRENT_TIMESTAMP';
+				$extras[] = 'on update CURRENT_TIMESTAMP';
 			}
 		}
 
 		if ( $node->get_descendant_token( WP_MySQL_Lexer::VIRTUAL_SYMBOL ) ) {
-			$extra = 'VIRTUAL GENERATED';
+			$extras[] = 'VIRTUAL GENERATED';
 		} elseif ( $node->get_descendant_token( WP_MySQL_Lexer::STORED_SYMBOL ) ) {
-			$extra = 'STORED GENERATED';
+			$extras[] = 'STORED GENERATED';
 		}
-		return $extra;
+		return implode( ' ', $extras );
 	}
 
 	private function get_column_comment( WP_Parser_Node $node ): string {

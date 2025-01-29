@@ -476,7 +476,7 @@ class WP_SQLite_Driver_Tests extends TestCase {
 			'CREATE TABLE `_tmp__table` (
   `ID` bigint NOT NULL AUTO_INCREMENT,
   `default_empty_string` varchar(255) DEFAULT \'\',
-  `null_no_default` varchar(255),
+  `null_no_default` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci',
 			$results[0]->{'Create Table'}
@@ -1954,7 +1954,7 @@ class WP_SQLite_Driver_Tests extends TestCase {
 					'Type'    => 'text',
 					'Null'    => 'YES',
 					'Key'     => '',
-					'Default' => 'NULL',
+					'Default' => null,
 					'Extra'   => '',
 				),
 			),
@@ -3405,7 +3405,7 @@ QUERY
 	public function testDefaultNullValue() {
 		$this->assertQuery(
 			'CREATE TABLE _tmp_table (
-				name varchar(20) NOT NULL default NULL,
+				name varchar(20) default NULL,
 				no_default varchar(20) NOT NULL
 			);'
 		);
@@ -3418,9 +3418,9 @@ QUERY
 				(object) array(
 					'Field'   => 'name',
 					'Type'    => 'varchar(20)',
-					'Null'    => 'NO',
+					'Null'    => 'YES',
 					'Key'     => '',
-					'Default' => 'NULL',
+					'Default' => null,
 					'Extra'   => '',
 				),
 				(object) array(
@@ -3637,6 +3637,32 @@ QUERY
 				(object) array( 'name' => "a\0b" ),
 			),
 			$this->engine->get_query_results()
+		);
+	}
+
+	public function testColumnDefaults(): void {
+		$this->assertQuery(
+			"
+			CREATE TABLE t (
+				name varchar(255) DEFAULT 'CURRENT_TIMESTAMP',
+				type varchar(255) NOT NULL DEFAULT 'DEFAULT',
+				description varchar(250) NOT NULL DEFAULT '',
+				created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+				updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+			)
+		"
+		);
+
+		$result = $this->assertQuery( 'SHOW CREATE TABLE t' );
+		$this->assertEquals(
+			"CREATE TABLE `t` (\n"
+				. "  `name` varchar(255) DEFAULT 'CURRENT_TIMESTAMP',\n"
+				. "  `type` varchar(255) NOT NULL DEFAULT 'DEFAULT',\n"
+				. "  `description` varchar(250) NOT NULL DEFAULT '',\n"
+				. "  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,\n"
+				. "  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP\n"
+				. ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci',
+			$result[0]->{'Create Table'}
 		);
 	}
 }
