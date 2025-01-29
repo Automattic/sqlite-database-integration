@@ -1508,11 +1508,9 @@ class WP_SQLite_Translator {
 		$updated_query = $this->rewriter->get_updated_query();
 
 		if ( $table_name && str_starts_with( strtolower( $table_name ), 'information_schema' ) ) {
-			// $this->is_information_schema_query = true;
-			// $updated_query                     = $this->get_information_schema_query( $updated_query );
-			// $params                            = array();
-			$updated_query = str_replace(
-				$table_name.'.tables',
+			$this->is_information_schema_query = true;
+			$updated_query = preg_replace(
+				'/'.$table_name.'\.tables/i',
 				"(SELECT
 					name as TABLE_NAME,
 					'database' as TABLE_SCHEMA,
@@ -2790,51 +2788,6 @@ class WP_SQLite_Translator {
 	}
 
 	/**
-	 * Rewrite a query from the MySQL information_schema.
-	 *
-	 * @param string $updated_query The query to rewrite.
-	 *
-	 * @return string The query for use by SQLite
-	 */
-	private function get_information_schema_query( $updated_query ) {
-		// @TODO: Actually rewrite the columns.
-		$normalized_query = preg_replace( '/\s+/', ' ', strtolower( $updated_query ) );
-		if ( str_contains( $normalized_query, 'bytes' ) ) {
-			// Count rows per table.
-			$tables =
-				$this->execute_sqlite_query( "SELECT name as `table_name` FROM sqlite_master WHERE type='table' ORDER BY name" )->fetchAll();
-			$tables = $this->strip_sqlite_system_tables( $tables );
-
-			$rows = '(CASE ';
-			foreach ( $tables as $table ) {
-				$table_name = $table['table_name'];
-				$count      = $this->execute_sqlite_query( "SELECT COUNT(1) as `count` FROM $table_name" )->fetch();
-				$rows      .= " WHEN name = '$table_name' THEN {$count['count']} ";
-			}
-			$rows         .= 'ELSE 0 END) ';
-			$updated_query =
-				"SELECT name as `table_name`, $rows as `rows`, 0 as `bytes` FROM sqlite_master WHERE type='table' ORDER BY name";
-		} elseif ( str_contains( $normalized_query, 'count(*)' ) && ! str_contains( $normalized_query, 'table_name =' ) ) {
-			// @TODO This is a guess that the caller wants a count of tables.
-			$list = array();
-			foreach ( $this->sqlite_system_tables as $system_table => $name ) {
-				$list [] = "'" . $system_table . "'";
-			}
-			$list          = implode( ', ', $list );
-			$sql           = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT IN ($list)";
-			$table_count   = $this->execute_sqlite_query( $sql )->fetch();
-			$updated_query = 'SELECT ' . $table_count[0] . ' AS num';
-
-			$this->is_information_schema_query = false;
-		} else {
-			$updated_query =
-				"SELECT name as `table_name`, 'myisam' as `engine`, 0 as `data_length`, 0 as `index_length`, 0 as `data_free` FROM sqlite_master WHERE type='table' ORDER BY name";
-		}
-
-		return $updated_query;
-	}
-
-	/**
 	 * Remove system table rows from resultsets of information_schema tables.
 	 *
 	 * @param array $tables The result set.
@@ -2846,19 +2799,20 @@ class WP_SQLite_Translator {
 			array_filter(
 				$tables,
 				function ( $table ) {
-					$table_name = false;
-					if ( is_array( $table ) ) {
-						if ( isset( $table['Name'] ) ) {
-							$table_name = $table['Name'];
-						} elseif ( isset( $table['table_name'] ) ) {
-							$table_name = $table['table_name'];
-						}
-					} elseif ( is_object( $table ) ) {
-						$table_name = property_exists( $table, 'Name' )
-							? $table->Name // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
-							: $table->table_name;
+					/**
+					 * By default, we assume the table name is in the result set.
+					 * Otherwise, if a information_schema table uses a custom name
+					 * for the name/table_name column, the table would be removed.
+					 */
+					$table_name = true;
+					$table = (array) $table;
+					if ( isset( $table['Name'] ) ) {
+						$table_name = $table['Name'];
+					} elseif ( isset( $table['table_name'] ) ) {
+						$table_name = $table['table_name'];
+					} elseif ( isset( $table['TABLE_NAME'] ) ) {
+						$table_name = $table['TABLE_NAME'];
 					}
-
 					return $table_name && ! array_key_exists( $table_name, $this->sqlite_system_tables );
 				},
 				ARRAY_FILTER_USE_BOTH
