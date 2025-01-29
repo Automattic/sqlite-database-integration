@@ -101,6 +101,38 @@ class WP_SQLite_Metadata_Tests extends TestCase {
 			),
 			(array) $result[0]
 		);
+
+		$result = $this->assertQuery( "SELECT
+				table_name as 'name',
+				engine AS 'engine',
+				round( ( data_length / 1024 / 1024 ), 2 ) 'data'
+			FROM INFORMATION_SCHEMA.TABLES
+			WHERE TABLE_NAME = 'wp_posts'
+			ORDER BY name ASC;"
+		);
+
+		$this->assertEquals(
+			array(
+				'name' => 'wp_posts',
+				'engine' => 'InnoDB',
+				'data' => '0',
+			),
+			(array) $result[0]
+		);
+	}
+
+	public function testInformationSchemaQueryHidesSqliteSystemTables() {
+		/**
+		 * By default, system tables are not returned.
+		 */
+		$result = $this->assertQuery( "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'sqlite_sequence'" );
+		$this->assertEquals( 0, count( $result ) );
+
+		/**
+		 * If we use a custom name for the table_name column, system tables are returned.
+		 */
+		$result = $this->assertQuery( "SELECT TABLE_NAME as custom_name FROM INFORMATION_SCHEMA.TABLES WHERE custom_name = 'sqlite_sequence'" );
+		$this->assertEquals( 1, count( $result ) );
 	}
 
 	private function assertQuery( $sql, $error_substring = null ) {
