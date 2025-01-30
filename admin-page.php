@@ -130,7 +130,8 @@ function sqlite_plugin_adminbar_item( $admin_bar ) {
 	global $wpdb;
 
 	if ( defined( 'SQLITE_DB_DROPIN_VERSION' ) && defined( 'DB_ENGINE' ) && 'sqlite' === DB_ENGINE ) {
-		$title = '<span style="color:#46B450;">' . __( 'Database: SQLite', 'sqlite-database-integration' ) . '</span>';
+		$suffix = defined( 'WP_SQLITE_AST_DRIVER' ) && WP_SQLITE_AST_DRIVER ? ' (AST)' : '';
+		$title  = '<span style="color:#46B450;">' . __( 'Database: SQLite', 'sqlite-database-integration' ) . $suffix . '</span>';
 	} elseif ( stripos( $wpdb->db_server_info(), 'maria' ) !== false ) {
 		$title = '<span style="color:#DC3232;">' . __( 'Database: MariaDB', 'sqlite-database-integration' ) . '</span>';
 	} else {

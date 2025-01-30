@@ -929,6 +929,7 @@ class WP_MySQL_Lexer {
 	const SECONDARY_ENGINE_ATTRIBUTE_SYMBOL             = 849;
 	const JSON_VALUE_SYMBOL                             = 850;
 	const RETURNING_SYMBOL                              = 851;
+	const GEOMCOLLECTION_SYMBOL                         = 852;
 
 	// Comments
 	const COMMENT             = 900;
@@ -1155,6 +1156,7 @@ class WP_MySQL_Lexer {
 		'FUNCTION'                               => self::FUNCTION_SYMBOL,
 		'GENERAL'                                => self::GENERAL_SYMBOL,
 		'GENERATED'                              => self::GENERATED_SYMBOL,
+		'GEOMCOLLECTION'                         => self::GEOMCOLLECTION_SYMBOL,
 		'GEOMETRY'                               => self::GEOMETRY_SYMBOL,
 		'GEOMETRYCOLLECTION'                     => self::GEOMETRYCOLLECTION_SYMBOL,
 		'GET'                                    => self::GET_SYMBOL,
@@ -1810,6 +1812,7 @@ class WP_MySQL_Lexer {
 		self::FIELDS_SYMBOL              => self::COLUMNS_SYMBOL,
 		self::FLOAT4_SYMBOL              => self::FLOAT_SYMBOL,
 		self::FLOAT8_SYMBOL              => self::DOUBLE_SYMBOL,
+		self::GEOMCOLLECTION_SYMBOL      => self::GEOMETRYCOLLECTION_SYMBOL,
 		self::INT1_SYMBOL                => self::TINYINT_SYMBOL,
 		self::INT2_SYMBOL                => self::SMALLINT_SYMBOL,
 		self::INT3_SYMBOL                => self::MEDIUMINT_SYMBOL,
@@ -1936,6 +1939,7 @@ class WP_MySQL_Lexer {
 		self::FAILED_LOGIN_ATTEMPTS_SYMBOL           => 80019,
 		self::FIRST_VALUE_SYMBOL                     => 80000,
 		self::FOLLOWING_SYMBOL                       => 80000,
+		self::GEOMCOLLECTION_SYMBOL                  => 80000,
 		self::GET_MASTER_PUBLIC_KEY_SYMBOL           => 80000,
 		self::GET_SOURCE_PUBLIC_KEY_SYMBOL           => 80000,
 		self::GROUPING_SYMBOL                        => 80000,

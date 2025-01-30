@@ -1,35 +1,39 @@
 <?php
 
 /**
- * @TODO: Consider making this a generic WP_Parser_Token or similar.
- *        We can also make WP_MySQL_Token extend the generic one.
- * @TODO: Document the class.
+ * MySQL token.
+ *
+ * This class represents a MySQL SQL token that is produced by WP_MySQL_Lexer,
+ * and consumed by WP_MySQL_Parser during the parsing process.
  */
-class WP_MySQL_Token {
+class WP_MySQL_Token extends WP_Parser_Token {
 	/**
-	 * @TODO: Review and document these properties and their visibility.
+	 * Get the name of the token.
+	 *
+	 * This method is intended to be used only for testing and debugging purposes,
+	 * when tokens need to be presented by their names in a human-readable form.
+	 * It should not be used in production code, as it's not performance-optimized.
+	 *
+	 * @return string The token name.
 	 */
-	public $type;
-	public $text;
-
-	public function __construct( $type, $text ) {
-		$this->type = $type;
-		$this->text = $text;
+	public function get_name(): string {
+		$name = WP_MySQL_Lexer::get_token_name( $this->id );
+		if ( null === $name ) {
+			$name = 'UNKNOWN';
+		}
+		return $name;
 	}
 
-	public function get_type() {
-		return $this->type;
-	}
-
-	public function get_text() {
-		return $this->text;
-	}
-
-	public function get_name() {
-		return WP_MySQL_Lexer::get_token_name( $this->type );
-	}
-
-	public function __toString() {
-		return $this->text . '<' . $this->type . ',' . $this->get_name() . '>';
+	/**
+	 * Get the token representation as a string.
+	 *
+	 * This method is intended to be used only for testing and debugging purposes,
+	 * when tokens need to be presented in a human-readable form. It should not
+	 * be used in production code, as it's not performance-optimized.
+	 *
+	 * @return string
+	 */
+	public function __toString(): string {
+		return $this->value . '<' . $this->id . ',' . $this->get_name() . '>';
 	}
 }

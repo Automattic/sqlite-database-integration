@@ -2965,9 +2965,9 @@ simpleExpr: %simpleExpr_collate (CONCAT_PIPES_SYMBOL %simpleExpr_collate)*;
     literal                                                                                              # simpleExprLiteral
     | sumExpr                                                                                            # simpleExprSum
     | variable (equal expr)?                                                                             # simpleExprVariable
-    | functionCall                                                                                       # simpleExprFunction
-    | runtimeFunctionCall                                                                                # simpleExprRuntimeFunction
-    | columnRef jsonOperator?                                                                            # simpleExprColumnRef
+    /*| functionCall                                                                                       # simpleExprFunction*/
+    /*| runtimeFunctionCall                                                                                # simpleExprRuntimeFunction*/
+    /*| columnRef jsonOperator?                                                                            # simpleExprColumnRef*/
     | PARAM_MARKER                                                                                       # simpleExprParamMarker
     | {serverVersion >= 80000}? groupingOperation                                                        # simpleExprGroupingOperation
     | {serverVersion >= 80000}? windowFunctionCall                                                       # simpleExprWindowingFunction
@@ -2991,6 +2991,10 @@ simpleExpr: %simpleExpr_collate (CONCAT_PIPES_SYMBOL %simpleExpr_collate)*;
     | DEFAULT_SYMBOL OPEN_PAR_SYMBOL simpleIdentifier CLOSE_PAR_SYMBOL                                   # simpleExprDefault
     | VALUES_SYMBOL OPEN_PAR_SYMBOL simpleIdentifier CLOSE_PAR_SYMBOL                                    # simpleExprValues
     | INTERVAL_SYMBOL expr interval PLUS_OPERATOR expr                                                   # simpleExprInterval
+    /* @FIX: Move function calls and ref to the end to avoid conflicts with the above expressions. */
+    | functionCall                                                                                       # simpleExprFunction
+    | runtimeFunctionCall                                                                                # simpleExprRuntimeFunction
+    | columnRef jsonOperator?                                                                            # simpleExprColumnRef
 ;
 
 arrayCast:
@@ -3175,7 +3179,7 @@ runtimeFunctionCall:
     | name = WEEK_SYMBOL OPEN_PAR_SYMBOL expr (COMMA_SYMBOL expr)? CLOSE_PAR_SYMBOL
     | name = WEIGHT_STRING_SYMBOL OPEN_PAR_SYMBOL expr AS_SYMBOL CHAR_SYMBOL CLOSE_PAR_SYMBOL
     | name = WEIGHT_STRING_SYMBOL OPEN_PAR_SYMBOL expr (
-        /* @FIX: Move "AS BINARY(...)" before "AS CHAR(...)" to solve conflict. */ 
+        /* @FIX: Move "AS BINARY(...)" before "AS CHAR(...)" to solve conflict. */
         AS_SYMBOL BINARY_SYMBOL wsNumCodepoints
         | (AS_SYMBOL CHAR_SYMBOL wsNumCodepoints)? (
             {serverVersion < 80000}? weightStringLevels
