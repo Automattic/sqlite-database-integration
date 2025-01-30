@@ -3665,4 +3665,23 @@ QUERY
 			$result[0]->{'Create Table'}
 		);
 	}
+
+	public function testSelectNonExistentColumn(): void {
+		$this->assertQuery(
+			'CREATE TABLE t (id INT)'
+		);
+
+		/*
+		 * Here, we're basically testing that identifiers are escaped using
+		 * backticks instead of double quotes. In SQLite, double quotes may
+		 * fallback to a string literal and thus produce no error.
+		 *
+		 * See:
+		 *   https://www.sqlite.org/quirks.html#double_quoted_string_literals_are_accepted
+		 */
+		$this->assertQuery(
+			'SELECT non_existent_column FROM t LIMIT 0',
+			'no such column: non_existent_column'
+		);
+	}
 }
