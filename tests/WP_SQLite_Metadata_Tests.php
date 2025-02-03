@@ -84,13 +84,6 @@ class WP_SQLite_Metadata_Tests extends TestCase {
 				'ENGINE'          => 'InnoDB',
 				'ROW_FORMAT'      => 'Dynamic',
 				'TABLE_COLLATION' => 'utf8mb4_general_ci',
-				'TABLE_COMMENT'   => '',
-				'CREATE_TABLE'    => 'CREATE TABLE "wp_options"(
-	"option_id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-  "option_name" text NOT NULL DEFAULT \'\' COLLATE NOCASE,
-  "option_value" text NOT NULL COLLATE NOCASE,
-  "autoload" text NOT NULL DEFAULT \'yes\' COLLATE NOCASE
-)',
 				'AUTO_INCREMENT'  => null,
 				'CREATE_TIME'     => null,
 				'UPDATE_TIME'     => null,
@@ -104,6 +97,7 @@ class WP_SQLite_Metadata_Tests extends TestCase {
 				'CHECKSUM'        => null,
 				'CREATE_OPTIONS'  => '',
 				'VERSION'         => '10',
+				'TABLE_COMMENT'   => '',
 			),
 			(array) $result[0]
 		);
