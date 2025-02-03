@@ -366,11 +366,11 @@ class WP_SQLite_DB extends wpdb {
 	}
 
 	/**
-	 * Retrieves full database server information.
+	 * Returns the version of the SQLite engine.
 	 *
-	 * @return string|false Server info on success, false on failure.
+	 * @return string SQLite engine version as a string.
 	 */
 	public function db_server_info() {
-		return SQLite3::version()['versionString'];
+		return $this->dbh->get_sqlite_version();
 	}
 }
