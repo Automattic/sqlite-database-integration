@@ -1521,6 +1521,7 @@ class WP_SQLite_Translator {
 					ELSE type
 					END as TABLE_TYPE,
 					'InnoDB' as ENGINE,
+					10 as VERSION,
 					'Dynamic' as ROW_FORMAT,
 					0 as TABLE_ROWS,
 					0 as AVG_ROW_LENGTH,
@@ -1535,9 +1536,7 @@ class WP_SQLite_Translator {
 					'utf8mb4_general_ci' as TABLE_COLLATION,
 					NULL as CHECKSUM,
 					'' as CREATE_OPTIONS,
-					'' as TABLE_COMMENT,
-					10 as VERSION,
-					sql as CREATE_TABLE
+					'' as TABLE_COMMENT
 					FROM sqlite_master
 					WHERE type IN ('table', 'view'))",
 				$updated_query
