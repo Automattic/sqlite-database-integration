@@ -1511,6 +1511,9 @@ class WP_SQLite_Translator {
 			$this->is_information_schema_query = true;
 			$updated_query                     = preg_replace(
 				'/' . $table_name . '\.tables/i',
+				/**
+				 * TODO: Return real values for hardcoded column values.
+				 */
 				"(SELECT
 					'def' as TABLE_CATALOG,
 					'database' as TABLE_SCHEMA,
