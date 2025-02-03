@@ -1509,29 +1509,35 @@ class WP_SQLite_Translator {
 
 		if ( $table_name && str_starts_with( strtolower( $table_name ), 'information_schema' ) ) {
 			$this->is_information_schema_query = true;
-			$updated_query = preg_replace(
-				'/'.$table_name.'\.tables/i',
+			$updated_query                     = preg_replace(
+				'/' . $table_name . '\.tables/i',
 				"(SELECT
-					name as TABLE_NAME,
+					'def' as TABLE_CATALOG,           /* Standard value for TABLE_CATALOG */
 					'database' as TABLE_SCHEMA,
+					name as TABLE_NAME,
 					CASE type
 					WHEN 'table' THEN 'BASE TABLE'
 					WHEN 'view' THEN 'VIEW'
 					ELSE type
 					END as TABLE_TYPE,
 					'InnoDB' as ENGINE,
-					'utf8mb4_general_ci' as TABLE_COLLATION,
-					'' as TABLE_COMMENT,
-					sql as CREATE_TABLE,
+					'Dynamic' as ROW_FORMAT,          /* Standard InnoDB row format */
+					0 as TABLE_ROWS,
+					0 as AVG_ROW_LENGTH,
+					0 as DATA_LENGTH,
+					0 as MAX_DATA_LENGTH,
+					0 as INDEX_LENGTH,
+					0 as DATA_FREE,
 					NULL as AUTO_INCREMENT,
 					NULL as CREATE_TIME,
 					NULL as UPDATE_TIME,
 					NULL as CHECK_TIME,
-					0 as TABLE_ROWS,
-					0 as DATA_LENGTH,
-					0 as INDEX_LENGTH,
-					0 as DATA_FREE,
-					10 as VERSION
+					'utf8mb4_general_ci' as TABLE_COLLATION,
+					NULL as CHECKSUM,
+					'' as CREATE_OPTIONS,
+					'' as TABLE_COMMENT,
+					10 as VERSION,
+					sql as CREATE_TABLE
 					FROM sqlite_master
 					WHERE type IN ('table', 'view'))",
 				$updated_query
@@ -2805,7 +2811,7 @@ class WP_SQLite_Translator {
 					 * for the name/table_name column, the table would be removed.
 					 */
 					$table_name = true;
-					$table = (array) $table;
+					$table      = (array) $table;
 					if ( isset( $table['Name'] ) ) {
 						$table_name = $table['Name'];
 					} elseif ( isset( $table['table_name'] ) ) {
@@ -3536,24 +3542,32 @@ class WP_SQLite_Translator {
 				$database_expression = $this->rewriter->skip();
 				$stmt                = $this->execute_sqlite_query(
 					"SELECT
-						name as `Name`,
-						'myisam' as `Engine`,
-						10 as `Version`,
-						'Fixed' as `Row_format`,
-						0 as `Rows`,
-						0 as `Avg_row_length`,
-						0 as `Data_length`,
-						0 as `Max_data_length`,
-						0 as `Index_length`,
-						0 as `Data_free` ,
-						0 as `Auto_increment`,
-						'2024-03-20 15:33:20' as `Create_time`,
-						'2024-03-20 15:33:20' as `Update_time`,
-						null as `Check_time`,
-						null as `Collation`,
-						null as `Checksum`,
-						'' as `Create_options`,
-						'' as `Comment`
+						'def' as TABLE_CATALOG,           /* Standard value for TABLE_CATALOG */
+						'database' as TABLE_SCHEMA,
+						name as TABLE_NAME,
+						CASE type
+						WHEN 'table' THEN 'BASE TABLE'
+						WHEN 'view' THEN 'VIEW'
+						ELSE type
+						END as TABLE_TYPE,
+						'InnoDB' as ENGINE,
+						'Dynamic' as ROW_FORMAT,          /* Standard InnoDB row format */
+						0 as TABLE_ROWS,
+						0 as AVG_ROW_LENGTH,             /* Added missing column */
+						0 as DATA_LENGTH,
+						0 as MAX_DATA_LENGTH,            /* Added missing column */
+						0 as INDEX_LENGTH,
+						0 as DATA_FREE,
+						NULL as AUTO_INCREMENT,
+						NULL as CREATE_TIME,
+						NULL as UPDATE_TIME,
+						NULL as CHECK_TIME,
+						'utf8mb4_general_ci' as TABLE_COLLATION,
+						NULL as CHECKSUM,                /* Added missing column */
+						'' as CREATE_OPTIONS,            /* Added missing column */
+						'' as TABLE_COMMENT,
+						10 as VERSION,
+						sql as CREATE_TABLE
 					FROM sqlite_master
 					WHERE
 						type='table'
