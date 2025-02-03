@@ -8,7 +8,9 @@
 		"issues": "https://github.com/wordpress/sqlite-database-integration/issues"
 	},
 	"require": {
-		"php": ">=7.0"
+		"php": ">=7.0",
+		"ext-pdo": "*",
+		"ext-pdo_sqlite": "*"
 	},
 	"require-dev": {
 		"ext-mbstring": "*",
