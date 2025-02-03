@@ -77,32 +77,39 @@ class WP_SQLite_Metadata_Tests extends TestCase {
 		$result = $this->assertQuery( "SELECT * FROM information_schema.tables WHERE TABLE_NAME = 'wp_options'" );
 		$this->assertEquals(
 			array(
-				'TABLE_NAME' => 'wp_options',
-				'TABLE_TYPE' => 'BASE TABLE',
-				'TABLE_SCHEMA' => 'database',
-				'ENGINE' => 'InnoDB',
+				'TABLE_CATALOG'   => 'def',
+				'TABLE_SCHEMA'    => 'database',
+				'TABLE_NAME'      => 'wp_options',
+				'TABLE_TYPE'      => 'BASE TABLE',
+				'ENGINE'          => 'InnoDB',
+				'ROW_FORMAT'      => 'Dynamic',
 				'TABLE_COLLATION' => 'utf8mb4_general_ci',
-				'TABLE_COMMENT' => '',
-				'CREATE_TABLE' => 'CREATE TABLE "wp_options"(
+				'TABLE_COMMENT'   => '',
+				'CREATE_TABLE'    => 'CREATE TABLE "wp_options"(
 	"option_id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
   "option_name" text NOT NULL DEFAULT \'\' COLLATE NOCASE,
   "option_value" text NOT NULL COLLATE NOCASE,
   "autoload" text NOT NULL DEFAULT \'yes\' COLLATE NOCASE
 )',
-				'AUTO_INCREMENT' => null,
-				'CREATE_TIME' => null,
-				'UPDATE_TIME' => null,
-				'CHECK_TIME' => null,
-				'TABLE_ROWS' => '0',
-				'DATA_LENGTH' => '0',
-				'INDEX_LENGTH' => '0',
-				'DATA_FREE' => '0',
-				'VERSION' => '10',
+				'AUTO_INCREMENT'  => null,
+				'CREATE_TIME'     => null,
+				'UPDATE_TIME'     => null,
+				'CHECK_TIME'      => null,
+				'TABLE_ROWS'      => '0',
+				'AVG_ROW_LENGTH'  => '0',
+				'DATA_LENGTH'     => '0',
+				'MAX_DATA_LENGTH' => '0',
+				'INDEX_LENGTH'    => '0',
+				'DATA_FREE'       => '0',
+				'CHECKSUM'        => null,
+				'CREATE_OPTIONS'  => '',
+				'VERSION'         => '10',
 			),
 			(array) $result[0]
 		);
 
-		$result = $this->assertQuery( "SELECT
+		$result = $this->assertQuery(
+			"SELECT
 				table_name as 'name',
 				engine AS 'engine',
 				round( ( data_length / 1024 / 1024 ), 2 ) 'data'
@@ -113,9 +120,9 @@ class WP_SQLite_Metadata_Tests extends TestCase {
 
 		$this->assertEquals(
 			array(
-				'name' => 'wp_posts',
+				'name'   => 'wp_posts',
 				'engine' => 'InnoDB',
-				'data' => '0',
+				'data'   => '0',
 			),
 			(array) $result[0]
 		);
