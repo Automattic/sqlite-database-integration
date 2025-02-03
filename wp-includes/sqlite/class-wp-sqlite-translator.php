@@ -2810,7 +2810,7 @@ class WP_SQLite_Translator {
 					 * Otherwise, if a information_schema table uses a custom name
 					 * for the name/table_name column, the table would be removed.
 					 */
-					$table_name = true;
+					$table_name = '';
 					$table      = (array) $table;
 					if ( isset( $table['Name'] ) ) {
 						$table_name = $table['Name'];
@@ -2819,7 +2819,7 @@ class WP_SQLite_Translator {
 					} elseif ( isset( $table['TABLE_NAME'] ) ) {
 						$table_name = $table['TABLE_NAME'];
 					}
-					return $table_name && ! array_key_exists( $table_name, $this->sqlite_system_tables );
+					return ! array_key_exists( $table_name, $this->sqlite_system_tables );
 				},
 				ARRAY_FILTER_USE_BOTH
 			)
