@@ -194,6 +194,22 @@ class WP_SQLite_Driver {
 	);
 
 	/**
+	 * The SQLite version.
+	 *
+	 * This is a mysqli-like property that is needed to avoid a PHP warning in
+	 * the WordPress health info. The "WP_Debug_Data::get_wp_database()" method
+	 * calls "$wpdb->dbh->client_info" - a mysqli-specific abstraction leak.
+	 *
+	 * @TODO: This should be fixed in WordPress core.
+	 *
+	 * See:
+	 *   https://github.com/WordPress/wordpress-develop/blob/bcdca3f9925f1d3eca7b78d231837c0caf0c8c24/src/wp-admin/includes/class-wp-debug-data.php#L1579
+	 *
+	 * @var string
+	 */
+	public $client_info;
+
+	/**
 	 * @var WP_Parser_Grammar
 	 */
 	private static $grammar;
@@ -213,15 +229,6 @@ class WP_SQLite_Driver {
 	 * @var PDO object
 	 */
 	private $pdo;
-
-	/**
-	 * The database version.
-	 *
-	 * This is used here to avoid PHP warnings in the health screen.
-	 *
-	 * @var string
-	 */
-	public $client_info = '';
 
 	/**
 	 * Last executed MySQL query.
@@ -434,11 +441,8 @@ class WP_SQLite_Driver {
 			self::$grammar = new WP_Parser_Grammar( require self::GRAMMAR_PATH );
 		}
 
-		// Fixes a warning in the site-health screen.
-		// @TODO: It is not clear how this fixes a warning or if it serves a
-		//        different purpose. We should also make this use PDO and
-		//        consider providing that information lazily via a getter.
-		$this->client_info = SQLite3::version()['versionString'];
+		// Load SQLite version to a property used by WordPress health info.
+		$this->client_info = $this->get_sqlite_version();
 
 		$this->pdo->query( 'PRAGMA foreign_keys = ON' );
 		$this->pdo->query( 'PRAGMA encoding="UTF-8";' );
@@ -456,6 +460,15 @@ class WP_SQLite_Driver {
 	 */
 	public function get_pdo() {
 		return $this->pdo;
+	}
+
+	/**
+	 * Get the version of the SQLite engine.
+	 *
+	 * @return string SQLite engine version as a string.
+	 */
+	public function get_sqlite_version(): string {
+		return $this->pdo->query( 'SELECT SQLITE_VERSION()' )->fetchColumn();
 	}
 
 	/**
