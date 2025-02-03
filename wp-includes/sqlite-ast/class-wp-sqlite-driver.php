@@ -235,14 +235,14 @@ class WP_SQLite_Driver {
 	 *
 	 * @var string
 	 */
-	public $mysql_query;
+	private $mysql_query;
 
 	/**
 	 * A list of executed SQLite queries.
 	 *
 	 * @var array
 	 */
-	public $executed_sqlite_queries = array();
+	private $executed_sqlite_queries = array();
 
 	/**
 	 * The affected table name.
@@ -279,7 +279,7 @@ class WP_SQLite_Driver {
 	 *
 	 * @var boolean
 	 */
-	public $is_error = false;
+	private $is_error = false;
 
 	/**
 	 * Class variable to store the file name and function to cause error.
@@ -469,6 +469,24 @@ class WP_SQLite_Driver {
 	 */
 	public function get_sqlite_version(): string {
 		return $this->pdo->query( 'SELECT SQLITE_VERSION()' )->fetchColumn();
+	}
+
+	/**
+	 * Get the last executed MySQL query.
+	 *
+	 * @return string|null
+	 */
+	public function get_mysql_query(): ?string {
+		return $this->mysql_query;
+	}
+
+	/**
+	 * Get all SQLite queries executed for the last MySQL query.
+	 *
+	 * @return array
+	 */
+	public function get_executed_sqlite_queries(): array {
+		return $this->executed_sqlite_queries;
 	}
 
 	/**
