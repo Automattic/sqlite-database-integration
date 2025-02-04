@@ -8,8 +8,10 @@
 class WP_SQLite_Driver {
 	const GRAMMAR_PATH = __DIR__ . '/../../wp-includes/mysql/mysql-grammar.php';
 
-	const SQLITE_BUSY   = 5;
-	const SQLITE_LOCKED = 6;
+	/**
+	 * The default timeout in seconds for SQLite to wait for a writable lock.
+	 */
+	const DEFAULT_TIMEOUT = 10;
 
 	/**
 	 * An identifier prefix for internal objects.
@@ -387,38 +389,22 @@ class WP_SQLite_Driver {
 				$this->prepare_directory();
 			}
 
-			$locked      = false;
-			$status      = 0;
-			$err_message = '';
-			do {
-				try {
-					$options = array(
-						PDO::ATTR_ERRMODE           => PDO::ERRMODE_EXCEPTION,
-						PDO::ATTR_STRINGIFY_FETCHES => true,
-						PDO::ATTR_TIMEOUT           => 5,
-					);
+			try {
+				$options = array(
+					PDO::ATTR_ERRMODE           => PDO::ERRMODE_EXCEPTION,
+					PDO::ATTR_STRINGIFY_FETCHES => true,
+					PDO::ATTR_TIMEOUT           => self::DEFAULT_TIMEOUT,
+				);
 
-					$dsn = 'sqlite:' . FQDB;
-					$pdo = new PDO( $dsn, null, null, $options );
-				} catch ( PDOException $ex ) {
-					$status = $ex->getCode();
-					if ( self::SQLITE_BUSY === $status || self::SQLITE_LOCKED === $status ) {
-						$locked = true;
-					} else {
-						$err_message = $ex->getMessage();
-					}
-				}
-			} while ( $locked );
-
-			if ( $status > 0 ) {
-				$message                = sprintf(
+				$dsn = 'sqlite:' . FQDB;
+				$pdo = new PDO( $dsn, null, null, $options );
+			} catch ( PDOException $ex ) {
+				$this->error_messages[] = sprintf(
 					'<p>%s</p><p>%s</p><p>%s</p>',
 					'Database initialization error!',
-					"Code: $status",
-					"Error Message: $err_message"
+					'Code: ' . $ex->getCode(),
+					'Error Message: ' . $ex->getMessage()
 				);
-				$this->is_error         = true;
-				$this->error_messages[] = $message;
 				return;
 			}
 		}
@@ -603,17 +589,7 @@ class WP_SQLite_Driver {
 
 			// Perform all the queries in a nested transaction.
 			$this->begin_transaction();
-
-			do {
-				$error = null;
-				try {
-					$this->execute_mysql_query( $ast );
-				} catch ( PDOException $error ) {
-					if ( $error->getCode() !== self::SQLITE_BUSY ) {
-						throw $error;
-					}
-				}
-			} while ( $error );
+			$this->execute_mysql_query( $ast );
 
 			if ( function_exists( 'do_action' ) ) {
 				/**
