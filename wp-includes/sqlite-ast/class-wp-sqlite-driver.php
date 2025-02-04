@@ -504,35 +504,6 @@ class WP_SQLite_Driver {
 	 */
 	public function query( string $query, $fetch_mode = PDO::FETCH_OBJ, ...$fetch_mode_args ) {
 		$this->flush();
-		if ( function_exists( 'apply_filters' ) ) {
-			/**
-			 * Filters queries before they are translated and run.
-			 *
-			 * Return a non-null value to cause query() to return early with that result.
-			 * Use this filter to intercept queries that don't work correctly in SQLite.
-			 *
-			 * From within the filter you can do
-			 *  function filter_sql ($result, $translator, $statement, $mode, $fetch_mode_args) {
-			 *     if ( intercepting this query  ) {
-			 *       return $translator->execute_sqlite_query( $statement );
-			 *     }
-			 *     return $result;
-			 *   }
-			 *
-			 * @param null|array $result Default null to continue with the query.
-			 * @param object     $translator The translator object. You can call $translator->execute_sqlite_query().
-			 * @param string     $query The statement passed.
-			 * @param int        $fetch_mode Fetch mode: PDO::FETCH_OBJ, PDO::FETCH_CLASS, etc.
-			 * @param array      $fetch_mode_args Variable arguments passed to query.
-			 *
-			 * @returns null|array Null to proceed, or an array containing a resultset.
-			 * @since 2.1.0
-			 */
-			$pre = apply_filters( 'pre_query_sqlite_db', null, $this, $query, $fetch_mode, $fetch_mode_args );
-			if ( null !== $pre ) {
-				return $pre;
-			}
-		}
 		$this->pdo_fetch_mode = $fetch_mode;
 		$this->mysql_query    = $query;
 
@@ -590,37 +561,9 @@ class WP_SQLite_Driver {
 			// Perform all the queries in a nested transaction.
 			$this->begin_transaction();
 			$this->execute_mysql_query( $ast );
-
-			if ( function_exists( 'do_action' ) ) {
-				/**
-				 * Notifies that a query has been translated and executed.
-				 *
-				 * @param string $query The executed SQL query.
-				 * @param string $query_type The type of the SQL query (e.g. SELECT, INSERT, UPDATE, DELETE).
-				 * @param string $table_name The name of the table affected by the SQL query.
-				 * @param array $insert_columns The columns affected by the INSERT query (if applicable).
-				 * @param int $last_insert_id The ID of the last inserted row (if applicable).
-				 * @param int $affected_rows The number of affected rows (if applicable).
-				 *
-				 * @since 0.1.0
-				 */
-				do_action(
-					'sqlite_translated_query_executed',
-					$this->mysql_query,
-					$this->query_type,
-					$this->table_name,
-					$this->insert_columns,
-					$this->last_insert_id,
-					$this->affected_rows
-				);
-			}
-
-			// Commit the nested transaction.
 			$this->commit();
-
 			return $this->return_value;
 		} catch ( Exception $err ) {
-			// Rollback the nested transaction.
 			$this->rollback();
 			if ( defined( 'PDO_DEBUG' ) && PDO_DEBUG === true ) {
 				throw $err;
@@ -758,18 +701,6 @@ class WP_SQLite_Driver {
 		} finally {
 			if ( $success ) {
 				++$this->transaction_level;
-				if ( function_exists( 'do_action' ) ) {
-					/**
-					 * Notifies that a transaction-related query has been translated and executed.
-					 *
-					 * @param string $command The SQL statement (one of "START TRANSACTION", "COMMIT", "ROLLBACK").
-					 * @param bool $success Whether the SQL statement was successful or not.
-					 * @param int $nesting_level The nesting level of the transaction.
-					 *
-					 * @since 0.1.0
-					 */
-					do_action( 'sqlite_transaction_query_executed', 'START TRANSACTION', (bool) $this->last_exec_returned, $this->transaction_level - 1 );
-				}
 			}
 		}
 		return $success;
@@ -791,10 +722,6 @@ class WP_SQLite_Driver {
 		} else {
 			$this->execute_sqlite_query( 'RELEASE SAVEPOINT LEVEL' . $this->transaction_level );
 		}
-
-		if ( function_exists( 'do_action' ) ) {
-			do_action( 'sqlite_transaction_query_executed', 'COMMIT', (bool) $this->last_exec_returned, $this->transaction_level );
-		}
 		return $this->last_exec_returned;
 	}
 
@@ -813,9 +740,6 @@ class WP_SQLite_Driver {
 			$this->execute_sqlite_query( 'ROLLBACK' );
 		} else {
 			$this->execute_sqlite_query( 'ROLLBACK TO SAVEPOINT LEVEL' . $this->transaction_level );
-		}
-		if ( function_exists( 'do_action' ) ) {
-			do_action( 'sqlite_transaction_query_executed', 'ROLLBACK', (bool) $this->last_exec_returned, $this->transaction_level );
 		}
 		return $this->last_exec_returned;
 	}
@@ -1015,10 +939,6 @@ class WP_SQLite_Driver {
 		$this->last_insert_id = $this->pdo->lastInsertId();
 		if ( is_numeric( $this->last_insert_id ) ) {
 			$this->last_insert_id = (int) $this->last_insert_id;
-		}
-
-		if ( function_exists( 'apply_filters' ) ) {
-			$this->last_insert_id = apply_filters( 'sqlite_last_insert_id', $this->last_insert_id, $this->table_name );
 		}
 	}
 
