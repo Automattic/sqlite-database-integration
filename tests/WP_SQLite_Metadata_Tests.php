@@ -73,6 +73,69 @@ class WP_SQLite_Metadata_Tests extends TestCase {
 		self::assertIsNumeric( $count );
 	}
 
+	public function testInformationSchemaTables() {
+		$result = $this->assertQuery( "SELECT * FROM information_schema.tables WHERE TABLE_NAME = 'wp_options'" );
+		$this->assertEquals(
+			array(
+				'TABLE_CATALOG'   => 'def',
+				'TABLE_SCHEMA'    => 'database',
+				'TABLE_NAME'      => 'wp_options',
+				'TABLE_TYPE'      => 'BASE TABLE',
+				'ENGINE'          => 'InnoDB',
+				'ROW_FORMAT'      => 'Dynamic',
+				'TABLE_COLLATION' => 'utf8mb4_general_ci',
+				'AUTO_INCREMENT'  => null,
+				'CREATE_TIME'     => null,
+				'UPDATE_TIME'     => null,
+				'CHECK_TIME'      => null,
+				'TABLE_ROWS'      => '0',
+				'AVG_ROW_LENGTH'  => '0',
+				'DATA_LENGTH'     => '0',
+				'MAX_DATA_LENGTH' => '0',
+				'INDEX_LENGTH'    => '0',
+				'DATA_FREE'       => '0',
+				'CHECKSUM'        => null,
+				'CREATE_OPTIONS'  => '',
+				'VERSION'         => '10',
+				'TABLE_COMMENT'   => '',
+			),
+			(array) $result[0]
+		);
+
+		$result = $this->assertQuery(
+			"SELECT
+				table_name as 'name',
+				engine AS 'engine',
+				FLOOR( data_length / 1024 / 1024 ) 'data'
+			FROM INFORMATION_SCHEMA.TABLES
+			WHERE TABLE_NAME = 'wp_posts'
+			ORDER BY name ASC;"
+		);
+
+		$this->assertEquals(
+			array(
+				'name'   => 'wp_posts',
+				'engine' => 'InnoDB',
+				'data'   => '0',
+			),
+			(array) $result[0]
+		);
+	}
+
+	public function testInformationSchemaQueryHidesSqliteSystemTables() {
+		/**
+		 * By default, system tables are not returned.
+		 */
+		$result = $this->assertQuery( "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'sqlite_sequence'" );
+		$this->assertEquals( 0, count( $result ) );
+
+		/**
+		 * If we use a custom name for the table_name column, system tables are returned.
+		 */
+		$result = $this->assertQuery( "SELECT TABLE_NAME as custom_name FROM INFORMATION_SCHEMA.TABLES WHERE custom_name = 'sqlite_sequence'" );
+		$this->assertEquals( 1, count( $result ) );
+	}
+
 	private function assertQuery( $sql, $error_substring = null ) {
 		$retval = $this->engine->query( $sql );
 		if ( null === $error_substring ) {
