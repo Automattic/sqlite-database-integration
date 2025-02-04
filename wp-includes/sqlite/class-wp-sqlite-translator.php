@@ -1013,15 +1013,25 @@ class WP_SQLite_Translator {
 			 *
 			 * Lexer does not seem to reliably understand whether the
 			 * first token is a field name or a reserved keyword, so
-			 * instead we'll check whether the second non-whitespace
-			 * token is a data type.
+			 * alongside checking for the reserved keyword, we'll also
+			 * check whether the second non-whitespace token is a data type.
+			 *
+			 * By checking for the reserved keyword, we can be sure that
+			 * we're not parsing a constraint as a field when the
+			 * constraint symbol matches a data type.
 			 */
-			$second_token = $this->rewriter->peek_nth( 2 );
+			$current_token = $this->rewriter->peek();
+			$second_token  = $this->rewriter->peek_nth( 2 );
 
-			if ( $second_token->matches(
-				WP_SQLite_Token::TYPE_KEYWORD,
-				WP_SQLite_Token::FLAG_KEYWORD_DATA_TYPE
-			) ) {
+			if (
+				$second_token->matches(
+					WP_SQLite_Token::TYPE_KEYWORD,
+					WP_SQLite_Token::FLAG_KEYWORD_DATA_TYPE
+				) && ! $current_token->matches(
+					WP_SQLite_Token::TYPE_KEYWORD,
+					WP_SQLite_Token::FLAG_KEYWORD_RESERVED
+				)
+			) {
 				$result->fields[] = $this->parse_mysql_create_table_field();
 			} else {
 				$result->constraints[] = $this->parse_mysql_create_table_constraint();
