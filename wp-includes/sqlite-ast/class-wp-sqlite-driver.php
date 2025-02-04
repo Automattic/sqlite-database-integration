@@ -1011,7 +1011,6 @@ class WP_SQLite_Driver {
 		foreach ( $constraint_queries as $query ) {
 			$this->execute_sqlite_query( $query );
 		}
-		$this->return_value = '1';
 	}
 
 	private function execute_alter_table_statement( WP_Parser_Node $node ): void {
@@ -1130,9 +1129,6 @@ class WP_SQLite_Driver {
 		}
 
 		// @TODO: Triggers and views.
-
-		$this->results      = 1;
-		$this->return_value = $this->results;
 
 		// @TODO: Consider using a "fast path" for ALTER TABLE statements that
 		//        consist only of operations that SQLite's ALTER TABLE supports.
