@@ -244,28 +244,7 @@ class WP_SQLite_Driver {
 	 *
 	 * @var array
 	 */
-	private $executed_sqlite_queries = array();
-
-	/**
-	 * The affected table name.
-	 *
-	 * @var array
-	 */
-	private $table_name = array();
-
-	/**
-	 * The type of the executed query (SELECT, INSERT, etc).
-	 *
-	 * @var array
-	 */
-	private $query_type = array();
-
-	/**
-	 * The columns to insert.
-	 *
-	 * @var array
-	 */
-	private $insert_columns = array();
+	private $sqlite_queries = array();
 
 	/**
 	 * Class variable to store the result of the query.
@@ -275,13 +254,6 @@ class WP_SQLite_Driver {
 	 * @var array reference to the PHP object
 	 */
 	private $results = null;
-
-	/**
-	 * Class variable to check if there is an error.
-	 *
-	 * @var boolean
-	 */
-	private $is_error = false;
 
 	/**
 	 * Class variable to store the file name and function to cause error.
@@ -302,40 +274,11 @@ class WP_SQLite_Driver {
 	private $error_messages = array();
 
 	/**
-	 * Class variable to store the affected row id.
-	 *
-	 * @var int integer
-	 * @access private
-	 */
-	private $last_insert_id;
-
-	/**
-	 * Number of rows found by the last SELECT query.
-	 *
-	 * @var int
-	 */
-	private $last_select_found_rows;
-
-	/**
 	 * Number of rows found by the last SQL_CALC_FOUND_ROW query.
 	 *
 	 * @var int integer
 	 */
 	private $last_sql_calc_found_rows = null;
-
-	/**
-	 * Class variable to store the number of rows affected.
-	 *
-	 * @var int integer
-	 */
-	private $affected_rows;
-
-	/**
-	 * Variable to emulate MySQL affected row.
-	 *
-	 * @var integer
-	 */
-	private $num_rows;
 
 	/**
 	 * Return value from query().
@@ -352,13 +295,6 @@ class WP_SQLite_Driver {
 	 * @var int
 	 */
 	private $transaction_level = 0;
-
-	/**
-	 * Value returned by the last exec().
-	 *
-	 * @var mixed
-	 */
-	private $last_exec_returned;
 
 	/**
 	 * The PDO fetch mode passed to query().
@@ -471,22 +407,19 @@ class WP_SQLite_Driver {
 	 *
 	 * @return array
 	 */
-	public function get_executed_sqlite_queries(): array {
-		return $this->executed_sqlite_queries;
+	public function get_sqlite_queries(): array {
+		return $this->sqlite_queries;
 	}
 
 	/**
 	 * Method to return inserted row id.
 	 */
 	public function get_insert_id() {
-		return $this->last_insert_id;
-	}
-
-	/**
-	 * Method to return the number of rows affected.
-	 */
-	public function get_affected_rows() {
-		return $this->affected_rows;
+		$last_insert_id = $this->pdo->lastInsertId();
+		if ( is_numeric( $last_insert_id ) ) {
+			$last_insert_id = (int) $last_insert_id;
+		}
+		return $last_insert_id;
 	}
 
 	/**
@@ -582,13 +515,6 @@ class WP_SQLite_Driver {
 	}
 
 	/**
-	 * Method to return the number of rows from the queried result.
-	 */
-	public function get_num_rows() {
-		return $this->num_rows;
-	}
-
-	/**
 	 * Method to return the queried results according to the query types.
 	 *
 	 * @return mixed
@@ -611,20 +537,19 @@ class WP_SQLite_Driver {
 	 * }
 	 */
 	public function execute_sqlite_query( $sql, $params = array() ) {
-		$this->executed_sqlite_queries[] = array(
+		$this->sqlite_queries[] = array(
 			'sql'    => $sql,
 			'params' => $params,
 		);
 
 		$stmt = $this->pdo->prepare( $sql );
 		if ( false === $stmt || null === $stmt ) {
-			$this->last_exec_returned = null;
-			$info                     = $this->pdo->errorInfo();
+			$info = $this->pdo->errorInfo();
 			throw new PDOException( implode( ' ', array( 'Error:', $info[0], $info[2], 'SQLite:', $sql ) ), $info[1] );
 		}
 
-		$this->last_exec_returned = $stmt->execute( $params );
-		if ( false === $this->last_exec_returned ) {
+		$is_success = $stmt->execute( $params );
+		if ( false === $is_success ) {
 			$info = $stmt->errorInfo();
 			throw new PDOException( implode( ' ', array( 'Error:', $info[0], $info[2], 'SQLite:', $sql ) ), $info[1] );
 		}
@@ -641,12 +566,7 @@ class WP_SQLite_Driver {
 	 */
 	public function get_error_message() {
 		if ( count( $this->error_messages ) === 0 ) {
-			$this->is_error       = false;
 			$this->error_messages = array();
-			return '';
-		}
-
-		if ( false === $this->is_error ) {
 			return '';
 		}
 
@@ -656,7 +576,7 @@ class WP_SQLite_Driver {
 		$output .= '<p>' . $this->mysql_query . '</p>' . PHP_EOL;
 		$output .= '<p>Queries made or created this session were:</p>' . PHP_EOL;
 		$output .= '<ol>' . PHP_EOL;
-		foreach ( $this->executed_sqlite_queries as $q ) {
+		foreach ( $this->sqlite_queries as $q ) {
 			$message = "Executing: {$q['sql']} | " . ( $q['params'] ? 'parameters: ' . implode( ', ', $q['params'] ) : '(no parameters)' );
 
 			$output .= '<li>' . htmlspecialchars( $message ) . '</li>' . PHP_EOL;
@@ -686,34 +606,22 @@ class WP_SQLite_Driver {
 
 	/**
 	 * Begin a new transaction or nested transaction.
-	 *
-	 * @return boolean
 	 */
-	public function begin_transaction() {
-		$success = false;
-		try {
-			if ( 0 === $this->transaction_level ) {
-				$this->execute_sqlite_query( 'BEGIN' );
-			} else {
-				$this->execute_sqlite_query( 'SAVEPOINT LEVEL' . $this->transaction_level );
-			}
-			$success = $this->last_exec_returned;
-		} finally {
-			if ( $success ) {
-				++$this->transaction_level;
-			}
+	public function begin_transaction(): void {
+		if ( 0 === $this->transaction_level ) {
+			$this->execute_sqlite_query( 'BEGIN' );
+		} else {
+			$this->execute_sqlite_query( 'SAVEPOINT LEVEL' . $this->transaction_level );
 		}
-		return $success;
+		++$this->transaction_level;
 	}
 
 	/**
 	 * Commit the current transaction or nested transaction.
-	 *
-	 * @return boolean True on success, false on failure.
 	 */
-	public function commit() {
+	public function commit(): void {
 		if ( 0 === $this->transaction_level ) {
-			return false;
+			return;
 		}
 
 		--$this->transaction_level;
@@ -722,17 +630,14 @@ class WP_SQLite_Driver {
 		} else {
 			$this->execute_sqlite_query( 'RELEASE SAVEPOINT LEVEL' . $this->transaction_level );
 		}
-		return $this->last_exec_returned;
 	}
 
 	/**
 	 * Rollback the current transaction or nested transaction.
-	 *
-	 * @return boolean True on success, false on failure.
 	 */
-	public function rollback() {
+	public function rollback(): void {
 		if ( 0 === $this->transaction_level ) {
-			return false;
+			return;
 		}
 
 		--$this->transaction_level;
@@ -741,7 +646,6 @@ class WP_SQLite_Driver {
 		} else {
 			$this->execute_sqlite_query( 'ROLLBACK TO SAVEPOINT LEVEL' . $this->transaction_level );
 		}
-		return $this->last_exec_returned;
 	}
 
 	/**
@@ -764,28 +668,20 @@ class WP_SQLite_Driver {
 		$ast = $children[0]->get_child_node();
 		switch ( $ast->rule_name ) {
 			case 'selectStatement':
-				$this->query_type = 'SELECT';
 				$this->execute_select_statement( $ast );
 				break;
 			case 'insertStatement':
-				$this->query_type = 'INSERT';
+			case 'replaceStatement':
 				$this->execute_insert_or_replace_statement( $ast );
 				break;
 			case 'updateStatement':
-				$this->query_type = 'UPDATE';
 				$this->execute_update_statement( $ast );
 				break;
-			case 'replaceStatement':
-				$this->query_type = 'REPLACE';
-				$this->execute_insert_or_replace_statement( $ast );
-				break;
 			case 'deleteStatement':
-				$this->query_type = 'DELETE';
 				$this->execute_delete_statement( $ast );
 				break;
 			case 'createStatement':
-				$this->query_type = 'CREATE';
-				$subtree          = $ast->get_child_node();
+				$subtree = $ast->get_child_node();
 				switch ( $subtree->rule_name ) {
 					case 'createTable':
 						$this->execute_create_table_statement( $ast );
@@ -801,8 +697,7 @@ class WP_SQLite_Driver {
 				}
 				break;
 			case 'alterStatement':
-				$this->query_type = 'ALTER';
-				$subtree          = $ast->get_child_node();
+				$subtree = $ast->get_child_node();
 				switch ( $subtree->rule_name ) {
 					case 'alterTable':
 						$this->execute_alter_table_statement( $ast );
@@ -818,8 +713,7 @@ class WP_SQLite_Driver {
 				}
 				break;
 			case 'dropStatement':
-				$this->query_type = 'DROP';
-				$subtree          = $ast->get_child_node();
+				$subtree = $ast->get_child_node();
 				switch ( $subtree->rule_name ) {
 					case 'dropTable':
 						$this->execute_drop_table_statement( $ast );
@@ -838,12 +732,10 @@ class WP_SQLite_Driver {
 				$this->results = 0;
 				break;
 			case 'showStatement':
-				$this->query_type = 'SHOW';
 				$this->execute_show_statement( $ast );
 				break;
 			case 'utilityStatement':
-				$this->query_type = 'DESCRIBE';
-				$subtree          = $ast->get_child_node();
+				$subtree = $ast->get_child_node();
 				switch ( $subtree->rule_name ) {
 					case 'describeStatement':
 						$this->execute_describe_statement( $subtree );
@@ -935,11 +827,6 @@ class WP_SQLite_Driver {
 		$query = implode( ' ', $parts );
 		$this->execute_sqlite_query( $query );
 		$this->set_result_from_affected_rows();
-
-		$this->last_insert_id = $this->pdo->lastInsertId();
-		if ( is_numeric( $this->last_insert_id ) ) {
-			$this->last_insert_id = (int) $this->last_insert_id;
-		}
 	}
 
 	private function execute_update_statement( WP_Parser_Node $node ): void {
@@ -1069,7 +956,7 @@ class WP_SQLite_Driver {
 						)
 					);
 					$this->set_result_from_affected_rows();
-					$rows += $this->affected_rows;
+					$rows += $this->results;
 				}
 			}
 
@@ -1120,12 +1007,11 @@ class WP_SQLite_Driver {
 		$constraint_queries = array_slice( $queries, 1 );
 
 		$this->execute_sqlite_query( $create_table_query );
-		$this->results      = $this->last_exec_returned;
-		$this->return_value = $this->results;
 
 		foreach ( $constraint_queries as $query ) {
 			$this->execute_sqlite_query( $query );
 		}
+		$this->return_value = '1';
 	}
 
 	private function execute_alter_table_statement( WP_Parser_Node $node ): void {
@@ -1289,7 +1175,6 @@ class WP_SQLite_Driver {
 		foreach ( $queries as $query ) {
 			$this->execute_sqlite_query( $query );
 		}
-		$this->results = $this->last_exec_returned;
 		$this->information_schema_builder->record_drop_table( $node );
 	}
 
@@ -1954,10 +1839,11 @@ class WP_SQLite_Driver {
 				//        that the function is used in the SELECT field list.
 				//        For compatibility with more complex use cases, it may
 				//        be better to register it as a custom SQLite function.
-				return sprintf(
-					"(SELECT %d) AS 'FOUND_ROWS()'",
-					$this->last_sql_calc_found_rows ?? $this->last_select_found_rows
-				);
+				$found_rows = $this->last_sql_calc_found_rows;
+				if ( null === $found_rows && is_array( $this->results ) ) {
+					$found_rows = count( $this->results );
+				}
+				return sprintf( "(SELECT %d) AS 'FOUND_ROWS()'", $found_rows );
 			default:
 				return $this->translate_sequence( $node->get_children() );
 		}
@@ -2420,18 +2306,11 @@ class WP_SQLite_Driver {
 	 * Method to clear previous data.
 	 */
 	private function flush() {
-		$this->mysql_query             = '';
-		$this->results                 = null;
-		$this->last_exec_returned      = null;
-		$this->table_name              = null;
-		$this->last_insert_id          = null;
-		$this->affected_rows           = null;
-		$this->insert_columns          = array();
-		$this->num_rows                = null;
-		$this->return_value            = null;
-		$this->error_messages          = array();
-		$this->is_error                = false;
-		$this->executed_sqlite_queries = array();
+		$this->mysql_query    = '';
+		$this->sqlite_queries = array();
+		$this->results        = null;
+		$this->return_value   = null;
+		$this->error_messages = array();
 	}
 
 	/**
@@ -2440,13 +2319,7 @@ class WP_SQLite_Driver {
 	 * @param array $data The data to set.
 	 */
 	private function set_results_from_fetched_data( $data ) {
-		if ( null === $this->results ) {
-			$this->results = $data;
-		}
-		if ( is_array( $this->results ) ) {
-			$this->num_rows               = count( $this->results );
-			$this->last_select_found_rows = count( $this->results );
-		}
+		$this->results      = $data;
 		$this->return_value = $this->results;
 	}
 
@@ -2463,13 +2336,12 @@ class WP_SQLite_Driver {
 		 * Source: https://www.php.net/manual/en/pdostatement.rowcount.php
 		 */
 		if ( null === $override ) {
-			$this->affected_rows = (int) $this->execute_sqlite_query( 'select changes()' )->fetch()[0];
+			$affected_rows = (int) $this->execute_sqlite_query( 'select changes()' )->fetch()[0];
 		} else {
-			$this->affected_rows = $override;
+			$affected_rows = $override;
 		}
-		$this->return_value = $this->affected_rows;
-		$this->num_rows     = $this->affected_rows;
-		$this->results      = $this->affected_rows;
+		$this->results      = $affected_rows;
+		$this->return_value = $affected_rows;
 	}
 
 	/**
@@ -2504,7 +2376,6 @@ class WP_SQLite_Driver {
 			'function' => $function_name,
 		);
 		$this->error_messages[] = $message;
-		$this->is_error         = true;
 	}
 
 	private function invalid_input_exception() {

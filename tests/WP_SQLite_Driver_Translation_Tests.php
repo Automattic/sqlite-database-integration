@@ -1255,7 +1255,7 @@ class WP_SQLite_Driver_Translation_Tests extends TestCase {
 			);
 		}
 
-		$executed_queries = array_column( $this->driver->get_executed_sqlite_queries(), 'sql' );
+		$executed_queries = array_column( $this->driver->get_sqlite_queries(), 'sql' );
 
 		// Remove BEGIN and COMMIT/ROLLBACK queries.
 		if ( count( $executed_queries ) > 2 ) {
@@ -1299,7 +1299,7 @@ class WP_SQLite_Driver_Translation_Tests extends TestCase {
 	private function assertExecutedInformationSchemaQueries( array $expected ): void {
 		// Collect and normalize "information_schema" queries.
 		$queries = array();
-		foreach ( $this->driver->get_executed_sqlite_queries() as $query ) {
+		foreach ( $this->driver->get_sqlite_queries() as $query ) {
 			if ( ! str_contains( $query['sql'], '_mysql_information_schema_' ) ) {
 				continue;
 			}
