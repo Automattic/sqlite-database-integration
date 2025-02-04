@@ -2808,8 +2808,9 @@ class WP_SQLite_Translator {
 				$tables,
 				function ( $table ) {
 					/**
-					 * By default, we assume the table name is in the result set.
-					 * Otherwise, if a information_schema table uses a custom name
+					 * By default, we assume the table name is in the result set,
+					 * so we allow empty table names to pass through.
+					 * Otherwise, if an information_schema table uses a custom name
 					 * for the name/table_name column, the table would be removed.
 					 */
 					$table_name = '';
@@ -2821,7 +2822,7 @@ class WP_SQLite_Translator {
 					} elseif ( isset( $table['TABLE_NAME'] ) ) {
 						$table_name = $table['TABLE_NAME'];
 					}
-					return ! array_key_exists( $table_name, $this->sqlite_system_tables );
+					return '' === $table_name || ! array_key_exists( $table_name, $this->sqlite_system_tables );
 				},
 				ARRAY_FILTER_USE_BOTH
 			)
