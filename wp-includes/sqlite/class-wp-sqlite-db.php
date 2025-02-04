@@ -263,16 +263,17 @@ class WP_SQLite_DB extends wpdb {
 	}
 
 	/**
-	 * Method to execute the query.
+	 * Performs a database query.
 	 *
-	 * This overrides wpdb::query(). In fact, this method does all the database
-	 * access jobs.
+	 * This overrides wpdb::query() while closely mirroring its implementation.
 	 *
 	 * @see wpdb::query()
 	 *
 	 * @param string $query Database query.
 	 *
-	 * @return int|false Number of rows affected/selected or false on error
+	 * @param string $query Database query.
+	 * @return int|bool Boolean true for CREATE, ALTER, TRUNCATE and DROP queries. Number of rows
+	 *                  affected/selected for all other queries. Boolean false on error.
 	 */
 	public function query( $query ) {
 		if ( ! $this->ready ) {
@@ -281,43 +282,103 @@ class WP_SQLite_DB extends wpdb {
 
 		$query = apply_filters( 'query', $query );
 
+		if ( ! $query ) {
+			$this->insert_id = 0;
+			return false;
+		}
+
 		$this->flush();
 
-		$this->func_call  = "\$db->query(\"$query\")";
+		// Log how the function was called.
+		$this->func_call = "\$db->query(\"$query\")";
+
+		// Keep track of the last query for debug.
 		$this->last_query = $query;
 
+		/*
+		 * @TODO: WPDB uses "$this->check_current_query" to check table/column
+		 *        charset and strip all invalid characters from the query.
+		 *        This is an involved process that we can bypass for SQLite,
+		 *        if we simply strip all invalid UTF-8 characters from the query.
+		 *
+		 *        To do so, mb_convert_encoding can be used with an optional
+		 *        fallback to a htmlspecialchars method. E.g.:
+		 *          https://github.com/nette/utils/blob/be534713c227aeef57ce1883fc17bc9f9e29eca2/src/Utils/Strings.php#L42
+		 */
+		$this->_do_query( $query );
+
+		$this->last_error = $this->dbh->get_error_message();
+		if ( $this->last_error ) {
+			// Clear insert_id on a subsequent failed insert.
+			if ( $this->insert_id && preg_match( '/^\s*(insert|replace)\s/i', $query ) ) {
+				$this->insert_id = 0;
+			}
+
+			$this->print_error();
+			return false;
+		}
+
+		if ( preg_match( '/^\s*(create|alter|truncate|drop)\s/i', $query ) ) {
+			$return_val = $this->result;
+		} elseif ( preg_match( '/^\s*(insert|delete|update|replace)\s/i', $query ) ) {
+			if ( $this->dbh instanceof WP_SQLite_Driver ) {
+				$this->rows_affected = $this->dbh->get_return_value();
+			} else {
+				$this->rows_affected = $this->dbh->get_rows_affected();
+			}
+
+			// Take note of the insert_id.
+			if ( preg_match( '/^\s*(insert|replace)\s/i', $query ) ) {
+				$this->insert_id = $this->dbh->get_insert_id();
+			}
+
+			// Return number of rows affected.
+			$return_val = $this->rows_affected;
+		} else {
+			$num_rows = 0;
+
+			if ( is_array( $this->result ) ) {
+				$this->last_result = $this->result;
+				$num_rows          = count( $this->result );
+			}
+
+			// Log and return the number of rows selected.
+			$this->num_rows = $num_rows;
+			$return_val     = $num_rows;
+		}
+
+		return $return_val;
+	}
+
+	/**
+	 * Internal function to perform the SQLite query call.
+	 *
+	 * This closely mirrors wpdb::_do_query().
+	 *
+	 * @see wpdb::_do_query()
+	 *
+	 * @param string $query The query to run.
+	 */
+	private function _do_query( $query ) {
 		if ( defined( 'SAVEQUERIES' ) && SAVEQUERIES ) {
 			$this->timer_start();
 		}
 
-		$this->result = $this->dbh->query( $query );
+		if ( ! empty( $this->dbh ) ) {
+			$this->result = $this->dbh->query( $query );
+		}
+
 		++$this->num_queries;
 
 		if ( defined( 'SAVEQUERIES' ) && SAVEQUERIES ) {
-			$this->queries[] = array( $query, $this->timer_stop(), $this->get_caller() );
+			$this->log_query(
+				$query,
+				$this->timer_stop(),
+				$this->get_caller(),
+				$this->time_start,
+				array()
+			);
 		}
-
-		$this->last_error = $this->dbh->get_error_message();
-		if ( $this->last_error ) {
-			$this->print_error( $this->last_error );
-			return false;
-		}
-
-		if ( preg_match( '/^\\s*(set|create|alter|truncate|drop|optimize)\\s*/i', $query ) ) {
-			return $this->dbh->get_return_value();
-		}
-
-		if ( preg_match( '/^\\s*(insert|delete|update|replace)\s/i', $query ) ) {
-			$this->rows_affected = $this->dbh->get_affected_rows();
-			if ( preg_match( '/^\s*(insert|replace)\s/i', $query ) ) {
-				$this->insert_id = $this->dbh->get_insert_id();
-			}
-			return $this->rows_affected;
-		}
-
-		$this->last_result = $this->dbh->get_query_results();
-		$this->num_rows    = $this->dbh->get_num_rows();
-		return $this->num_rows;
 	}
 
 	/**
