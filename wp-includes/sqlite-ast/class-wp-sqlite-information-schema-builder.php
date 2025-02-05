@@ -359,7 +359,7 @@ class WP_SQLite_Information_Schema_Builder {
 	 * @param WP_Parser_Node $node AST node representing a CREATE TABLE statement.
 	 */
 	public function record_create_table( WP_Parser_Node $node ): void {
-		$table_name       = $this->get_value( $node->get_descendant_node( 'tableName' ) );
+		$table_name       = $this->get_value( $node->get_first_descendant_node( 'tableName' ) );
 		$table_engine     = $this->get_table_engine( $node );
 		$table_row_format = 'MyISAM' === $table_engine ? 'FIXED' : 'DYNAMIC';
 		$table_collation  = $this->get_table_collation( $node );
@@ -380,7 +380,7 @@ class WP_SQLite_Information_Schema_Builder {
 		// 2. Columns.
 		$column_position = 1;
 		foreach ( $node->get_descendant_nodes( 'columnDefinition' ) as $column_node ) {
-			$column_name = $this->get_value( $column_node->get_child_node( 'columnName' ) );
+			$column_name = $this->get_value( $column_node->get_first_child_node( 'columnName' ) );
 
 			// Column definition.
 			$column_data = $this->extract_column_data(
@@ -415,11 +415,11 @@ class WP_SQLite_Information_Schema_Builder {
 	}
 
 	public function record_alter_table( WP_Parser_Node $node ): void {
-		$table_name = $this->get_value( $node->get_descendant_node( 'tableRef' ) );
+		$table_name = $this->get_value( $node->get_first_descendant_node( 'tableRef' ) );
 		$actions    = $node->get_descendant_nodes( 'alterListItem' );
 
 		foreach ( $actions as $action ) {
-			$first_token = $action->get_child_token();
+			$first_token = $action->get_first_child_token();
 
 			// ADD
 			if ( WP_MySQL_Lexer::ADD_SYMBOL === $first_token->id ) {
@@ -427,23 +427,23 @@ class WP_SQLite_Information_Schema_Builder {
 				$column_definitions = $action->get_descendant_nodes( 'columnDefinition' );
 				if ( count( $column_definitions ) > 0 ) {
 					foreach ( $column_definitions as $column_definition ) {
-						$name = $this->get_value( $column_definition->get_child_node( 'identifier' ) );
+						$name = $this->get_value( $column_definition->get_first_child_node( 'identifier' ) );
 						$this->record_add_column( $table_name, $name, $column_definition );
 					}
 					continue;
 				}
 
 				// ADD [COLUMN] ...
-				$field_definition = $action->get_descendant_node( 'fieldDefinition' );
+				$field_definition = $action->get_first_descendant_node( 'fieldDefinition' );
 				if ( null !== $field_definition ) {
-					$name = $this->get_value( $action->get_child_node( 'identifier' ) );
+					$name = $this->get_value( $action->get_first_child_node( 'identifier' ) );
 					$this->record_add_column( $table_name, $name, $field_definition );
 					// @TODO: Handle FIRST/AFTER.
 					continue;
 				}
 
 				// ADD CONSTRAINT.
-				$constraint = $action->get_descendant_node( 'tableConstraintDef' );
+				$constraint = $action->get_first_descendant_node( 'tableConstraintDef' );
 				if ( null !== $constraint ) {
 					$this->record_add_constraint( $table_name, $constraint );
 					continue;
@@ -454,24 +454,24 @@ class WP_SQLite_Information_Schema_Builder {
 
 			// CHANGE [COLUMN]
 			if ( WP_MySQL_Lexer::CHANGE_SYMBOL === $first_token->id ) {
-				$old_name = $this->get_value( $action->get_child_node( 'columnInternalRef' ) );
-				$new_name = $this->get_value( $action->get_child_node( 'identifier' ) );
+				$old_name = $this->get_value( $action->get_first_child_node( 'columnInternalRef' ) );
+				$new_name = $this->get_value( $action->get_first_child_node( 'identifier' ) );
 				$this->record_change_column(
 					$table_name,
 					$old_name,
 					$new_name,
-					$action->get_descendant_node( 'fieldDefinition' )
+					$action->get_first_descendant_node( 'fieldDefinition' )
 				);
 				continue;
 			}
 
 			// MODIFY [COLUMN]
 			if ( WP_MySQL_Lexer::MODIFY_SYMBOL === $first_token->id ) {
-				$name = $this->get_value( $action->get_child_node( 'columnInternalRef' ) );
+				$name = $this->get_value( $action->get_first_child_node( 'columnInternalRef' ) );
 				$this->record_modify_column(
 					$table_name,
 					$name,
-					$action->get_descendant_node( 'fieldDefinition' )
+					$action->get_first_descendant_node( 'fieldDefinition' )
 				);
 				continue;
 			}
@@ -479,7 +479,7 @@ class WP_SQLite_Information_Schema_Builder {
 			// DROP
 			if ( WP_MySQL_Lexer::DROP_SYMBOL === $first_token->id ) {
 				// DROP [COLUMN]
-				$column_ref = $action->get_child_node( 'columnInternalRef' );
+				$column_ref = $action->get_first_child_node( 'columnInternalRef' );
 				if ( null !== $column_ref ) {
 					$name = $this->get_value( $column_ref );
 					$this->record_drop_column( $table_name, $name );
@@ -488,7 +488,7 @@ class WP_SQLite_Information_Schema_Builder {
 
 				// DROP INDEX
 				if ( $action->has_child_node( 'keyOrIndex' ) ) {
-					$name = $this->get_value( $action->get_child_node( 'indexRef' ) );
+					$name = $this->get_value( $action->get_first_child_node( 'indexRef' ) );
 					$this->record_drop_index( $table_name, $name );
 					continue;
 				}
@@ -497,12 +497,12 @@ class WP_SQLite_Information_Schema_Builder {
 	}
 
 	public function record_drop_table( WP_Parser_Node $node ): void {
-		$child_node = $node->get_child_node();
+		$child_node = $node->get_first_child_node();
 		if ( $child_node->has_child_token( WP_MySQL_Lexer::TEMPORARY_SYMBOL ) ) {
 			return;
 		}
 
-		$table_refs = $child_node->get_child_node( 'tableRefList' )->get_child_nodes();
+		$table_refs = $child_node->get_first_child_node( 'tableRefList' )->get_child_nodes();
 		foreach ( $table_refs as $table_ref ) {
 			$table_name = $this->get_value( $table_ref );
 			$this->delete_values(
@@ -659,7 +659,7 @@ class WP_SQLite_Information_Schema_Builder {
 		$children = $node->get_children();
 		$keyword  = $children[0] instanceof WP_MySQL_Token ? $children[0] : $children[1];
 		if ( ! $keyword instanceof WP_MySQL_Token ) {
-			$keyword = $keyword->get_child_token();
+			$keyword = $keyword->get_first_child_token();
 		}
 
 		if (
@@ -670,11 +670,11 @@ class WP_SQLite_Information_Schema_Builder {
 		}
 
 		// Get key parts.
-		$key_list = $node->get_child_node( 'keyListVariants' )->get_child();
+		$key_list = $node->get_first_child_node( 'keyListVariants' )->get_first_child();
 		if ( 'keyListWithExpression' === $key_list->rule_name ) {
 			$key_parts = array();
 			foreach ( $key_list->get_descendant_nodes( 'keyPartOrExpression' ) as $key_part ) {
-				$key_parts[] = $key_part->get_child();
+				$key_parts[] = $key_part->get_first_child();
 			}
 		} else {
 			$key_parts = $key_list->get_descendant_nodes( 'keyPart' );
@@ -808,8 +808,8 @@ class WP_SQLite_Information_Schema_Builder {
 
 	private function extract_column_constraint_data( string $table_name, string $column_name, WP_Parser_Node $node, bool $nullable ): ?array {
 		// Handle inline PRIMARY KEY and UNIQUE constraints.
-		$has_inline_primary_key = null !== $node->get_descendant_token( WP_MySQL_Lexer::KEY_SYMBOL );
-		$has_inline_unique_key  = null !== $node->get_descendant_token( WP_MySQL_Lexer::UNIQUE_SYMBOL );
+		$has_inline_primary_key = null !== $node->get_first_descendant_token( WP_MySQL_Lexer::KEY_SYMBOL );
+		$has_inline_unique_key  = null !== $node->get_first_descendant_token( WP_MySQL_Lexer::UNIQUE_SYMBOL );
 		if ( $has_inline_primary_key || $has_inline_unique_key ) {
 			$index_name = $has_inline_primary_key ? 'PRIMARY' : $column_name;
 			return array(
@@ -881,7 +881,7 @@ class WP_SQLite_Information_Schema_Builder {
 	}
 
 	private function get_table_engine( WP_Parser_Node $node ): string {
-		$engine_node = $node->get_descendant_node( 'engineRef' );
+		$engine_node = $node->get_first_descendant_node( 'engineRef' );
 		if ( null === $engine_node ) {
 			return 'InnoDB';
 		}
@@ -896,7 +896,7 @@ class WP_SQLite_Information_Schema_Builder {
 	}
 
 	private function get_table_collation( WP_Parser_Node $node ): string {
-		$collate_node = $node->get_descendant_node( 'collationName' );
+		$collate_node = $node->get_first_descendant_node( 'collationName' );
 		if ( null === $collate_node ) {
 			// @TODO: Use default DB collation or DB_CHARSET & DB_COLLATE.
 			return 'utf8mb4_general_ci';
@@ -922,20 +922,20 @@ class WP_SQLite_Information_Schema_Builder {
 
 		if (
 			$default_attr->has_child_node( 'signedLiteral' )
-			&& null !== $default_attr->get_descendant_node( 'nullLiteral' )
+			&& null !== $default_attr->get_first_descendant_node( 'nullLiteral' )
 		) {
 			return null;
 		}
 
 		// @TODO: MySQL seems to normalize default values for numeric
 		//        columns, such as 1.0 to 1, 1e3 to 1000, etc.
-		return $this->get_value( $default_attr->get_child_node() );
+		return $this->get_value( $default_attr->get_first_child_node() );
 	}
 
 	private function get_column_nullable( WP_Parser_Node $node ): string {
 		// SERIAL is an alias for BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE.
-		$data_type = $node->get_descendant_node( 'dataType' );
-		if ( null !== $data_type->get_descendant_token( WP_MySQL_Lexer::SERIAL_SYMBOL ) ) {
+		$data_type = $node->get_first_descendant_node( 'dataType' );
+		if ( null !== $data_type->get_first_descendant_token( WP_MySQL_Lexer::SERIAL_SYMBOL ) ) {
 			return 'NO';
 		}
 
@@ -959,24 +959,24 @@ class WP_SQLite_Information_Schema_Builder {
 	private function get_column_key( WP_Parser_Node $column_node ): string {
 		// 1. PRI: Column is a primary key or its any component.
 		if (
-			null !== $column_node->get_descendant_token( WP_MySQL_Lexer::KEY_SYMBOL )
+			null !== $column_node->get_first_descendant_token( WP_MySQL_Lexer::KEY_SYMBOL )
 		) {
 			return 'PRI';
 		}
 
 		// SERIAL is an alias for BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE.
-		$data_type = $column_node->get_descendant_node( 'dataType' );
-		if ( null !== $data_type->get_descendant_token( WP_MySQL_Lexer::SERIAL_SYMBOL ) ) {
+		$data_type = $column_node->get_first_descendant_node( 'dataType' );
+		if ( null !== $data_type->get_first_descendant_token( WP_MySQL_Lexer::SERIAL_SYMBOL ) ) {
 			return 'PRI';
 		}
 
 		// 2. UNI: Column has UNIQUE constraint.
-		if ( null !== $column_node->get_descendant_token( WP_MySQL_Lexer::UNIQUE_SYMBOL ) ) {
+		if ( null !== $column_node->get_first_descendant_token( WP_MySQL_Lexer::UNIQUE_SYMBOL ) ) {
 			return 'UNI';
 		}
 
 		// 3. MUL: Column has INDEX.
-		if ( null !== $column_node->get_descendant_token( WP_MySQL_Lexer::INDEX_SYMBOL ) ) {
+		if ( null !== $column_node->get_first_descendant_token( WP_MySQL_Lexer::INDEX_SYMBOL ) ) {
 			return 'MUL';
 		}
 
@@ -988,8 +988,8 @@ class WP_SQLite_Information_Schema_Builder {
 		$attributes = $node->get_descendant_nodes( 'columnAttribute' );
 
 		// SERIAL
-		$data_type = $node->get_descendant_node( 'dataType' );
-		if ( null !== $data_type->get_descendant_token( WP_MySQL_Lexer::SERIAL_SYMBOL ) ) {
+		$data_type = $node->get_first_descendant_node( 'dataType' );
+		if ( null !== $data_type->get_first_descendant_token( WP_MySQL_Lexer::SERIAL_SYMBOL ) ) {
 			return 'auto_increment';
 		}
 
@@ -1015,9 +1015,9 @@ class WP_SQLite_Information_Schema_Builder {
 			}
 		}
 
-		if ( $node->get_descendant_token( WP_MySQL_Lexer::VIRTUAL_SYMBOL ) ) {
+		if ( $node->get_first_descendant_token( WP_MySQL_Lexer::VIRTUAL_SYMBOL ) ) {
 			$extras[] = 'VIRTUAL GENERATED';
-		} elseif ( $node->get_descendant_token( WP_MySQL_Lexer::STORED_SYMBOL ) ) {
+		} elseif ( $node->get_first_descendant_token( WP_MySQL_Lexer::STORED_SYMBOL ) ) {
 			$extras[] = 'STORED GENERATED';
 		}
 		return implode( ' ', $extras );
@@ -1026,14 +1026,14 @@ class WP_SQLite_Information_Schema_Builder {
 	private function get_column_comment( WP_Parser_Node $node ): string {
 		foreach ( $node->get_descendant_nodes( 'columnAttribute' ) as $attr ) {
 			if ( $attr->has_child_token( WP_MySQL_Lexer::COMMENT_SYMBOL ) ) {
-				return $this->get_value( $attr->get_child_node( 'textLiteral' ) );
+				return $this->get_value( $attr->get_first_child_node( 'textLiteral' ) );
 			}
 		}
 		return '';
 	}
 
 	private function get_column_data_types( WP_Parser_Node $node ): array {
-		$type_node = $node->get_descendant_node( 'dataType' );
+		$type_node = $node->get_first_descendant_node( 'dataType' );
 		$type      = $type_node->get_descendant_tokens();
 		$token     = $type[0];
 
@@ -1084,7 +1084,7 @@ class WP_SQLite_Information_Schema_Builder {
 		// Get full type.
 		$full_type = $type;
 		if ( 'enum' === $type || 'set' === $type ) {
-			$string_list = $type_node->get_descendant_node( 'stringList' );
+			$string_list = $type_node->get_first_descendant_node( 'stringList' );
 			$values      = $string_list->get_child_nodes( 'textString' );
 			foreach ( $values as $i => $value ) {
 				$values[ $i ] = "'" . str_replace( "'", "''", $this->get_value( $value ) ) . "'";
@@ -1092,7 +1092,7 @@ class WP_SQLite_Information_Schema_Builder {
 			$full_type .= '(' . implode( ',', $values ) . ')';
 		}
 
-		$field_length = $type_node->get_descendant_node( 'fieldLength' );
+		$field_length = $type_node->get_first_descendant_node( 'fieldLength' );
 		if ( null !== $field_length ) {
 			if ( 'decimal' === $type || 'float' === $type || 'double' === $type ) {
 				$full_type .= rtrim( $this->get_value( $field_length ), ')' ) . ',0)';
@@ -1108,12 +1108,12 @@ class WP_SQLite_Information_Schema_Builder {
 			 */
 		}
 
-		$precision = $type_node->get_descendant_node( 'precision' );
+		$precision = $type_node->get_first_descendant_node( 'precision' );
 		if ( null !== $precision ) {
 			$full_type .= $this->get_value( $precision );
 		}
 
-		$datetime_precision = $type_node->get_descendant_node( 'typeDatetimePrecision' );
+		$datetime_precision = $type_node->get_first_descendant_node( 'typeDatetimePrecision' );
 		if ( null !== $datetime_precision ) {
 			$full_type .= $this->get_value( $datetime_precision );
 		}
@@ -1136,14 +1136,14 @@ class WP_SQLite_Information_Schema_Builder {
 		// UNSIGNED.
 		// SERIAL is an alias for BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE.
 		if (
-			$type_node->get_descendant_token( WP_MySQL_Lexer::UNSIGNED_SYMBOL )
-			|| $type_node->get_descendant_token( WP_MySQL_Lexer::SERIAL_SYMBOL )
+			$type_node->get_first_descendant_token( WP_MySQL_Lexer::UNSIGNED_SYMBOL )
+			|| $type_node->get_first_descendant_token( WP_MySQL_Lexer::SERIAL_SYMBOL )
 		) {
 			$full_type .= ' unsigned';
 		}
 
 		// ZEROFILL.
-		if ( $type_node->get_descendant_token( WP_MySQL_Lexer::ZEROFILL_SYMBOL ) ) {
+		if ( $type_node->get_first_descendant_token( WP_MySQL_Lexer::ZEROFILL_SYMBOL ) ) {
 			$full_type .= ' zerofill';
 		}
 
@@ -1169,9 +1169,9 @@ class WP_SQLite_Information_Schema_Builder {
 		$is_binary = false;
 
 		// Charset.
-		$charset_node = $node->get_descendant_node( 'charsetWithOptBinary' );
+		$charset_node = $node->get_first_descendant_node( 'charsetWithOptBinary' );
 		if ( null !== $charset_node ) {
-			$charset_name_node = $charset_node->get_child_node( 'charsetName' );
+			$charset_name_node = $charset_node->get_first_child_node( 'charsetName' );
 			if ( null !== $charset_name_node ) {
 				$charset = strtolower( $this->get_value( $charset_name_node ) );
 			} elseif ( $charset_node->has_child_token( WP_MySQL_Lexer::ASCII_SYMBOL ) ) {
@@ -1189,7 +1189,7 @@ class WP_SQLite_Information_Schema_Builder {
 			}
 		} else {
 			// National charsets (in MySQL, it's "utf8").
-			$data_type_node = $node->get_descendant_node( 'dataType' );
+			$data_type_node = $node->get_first_descendant_node( 'dataType' );
 			if (
 				$data_type_node->has_child_node( 'nchar' )
 				|| $data_type_node->has_child_token( WP_MySQL_Lexer::NCHAR_SYMBOL )
@@ -1206,7 +1206,7 @@ class WP_SQLite_Information_Schema_Builder {
 		}
 
 		// Collation.
-		$collation_node = $node->get_descendant_node( 'collationName' );
+		$collation_node = $node->get_first_descendant_node( 'collationName' );
 		if ( null !== $collation_node ) {
 			$collation = strtolower( $this->get_value( $collation_node ) );
 		}
@@ -1254,7 +1254,7 @@ class WP_SQLite_Information_Schema_Builder {
 			|| 'varchar' === $data_type
 			|| 'varbinary' === $data_type
 		) {
-			$field_length = $node->get_descendant_node( 'fieldLength' );
+			$field_length = $node->get_first_descendant_node( 'fieldLength' );
 			if ( null === $field_length ) {
 				$length = 1;
 			} else {
@@ -1271,7 +1271,7 @@ class WP_SQLite_Information_Schema_Builder {
 
 		// For ENUM and SET, we need to check the longest value.
 		if ( 'enum' === $data_type || 'set' === $data_type ) {
-			$string_list = $node->get_descendant_node( 'stringList' );
+			$string_list = $node->get_first_descendant_node( 'stringList' );
 			$values      = $string_list->get_child_nodes( 'textString' );
 			$length      = 0;
 			foreach ( $values as $value ) {
@@ -1294,13 +1294,13 @@ class WP_SQLite_Information_Schema_Builder {
 		} elseif ( 'int' === $data_type ) {
 			return array( 10, 0 );
 		} elseif ( 'bigint' === $data_type ) {
-			if ( null !== $node->get_descendant_token( WP_MySQL_Lexer::UNSIGNED_SYMBOL ) ) {
+			if ( null !== $node->get_first_descendant_token( WP_MySQL_Lexer::UNSIGNED_SYMBOL ) ) {
 				return array( 20, 0 );
 			}
 
 			// SERIAL is an alias for BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE.
-			$data_type = $node->get_descendant_node( 'dataType' );
-			if ( null !== $data_type->get_descendant_token( WP_MySQL_Lexer::SERIAL_SYMBOL ) ) {
+			$data_type = $node->get_first_descendant_node( 'dataType' );
+			if ( null !== $data_type->get_first_descendant_token( WP_MySQL_Lexer::SERIAL_SYMBOL ) ) {
 				return array( 20, 0 );
 			}
 
@@ -1309,7 +1309,7 @@ class WP_SQLite_Information_Schema_Builder {
 
 		// For bit columns, we need to check the precision.
 		if ( 'bit' === $data_type ) {
-			$field_length = $node->get_descendant_node( 'fieldLength' );
+			$field_length = $node->get_first_descendant_node( 'fieldLength' );
 			if ( null === $field_length ) {
 				return array( 1, null );
 			}
@@ -1319,7 +1319,7 @@ class WP_SQLite_Information_Schema_Builder {
 		// For floating point numbers, we need to check the precision and scale.
 		$precision      = null;
 		$scale          = null;
-		$precision_node = $node->get_descendant_node( 'precision' );
+		$precision_node = $node->get_first_descendant_node( 'precision' );
 		if ( null !== $precision_node ) {
 			$values    = $precision_node->get_descendant_tokens( WP_MySQL_Lexer::INT_NUMBER );
 			$precision = (int) $values[0]->value;
@@ -1333,7 +1333,7 @@ class WP_SQLite_Information_Schema_Builder {
 		} elseif ( 'decimal' === $data_type ) {
 			if ( null === $precision ) {
 				// Only precision can be specified ("fieldLength" in the grammar).
-				$field_length = $node->get_descendant_node( 'fieldLength' );
+				$field_length = $node->get_first_descendant_node( 'fieldLength' );
 				if ( null !== $field_length ) {
 					$precision = (int) trim( $this->get_value( $field_length ), '()' );
 				}
@@ -1346,7 +1346,7 @@ class WP_SQLite_Information_Schema_Builder {
 
 	private function get_column_datetime_precision( WP_Parser_Node $node, string $data_type ): ?int {
 		if ( 'time' === $data_type || 'datetime' === $data_type || 'timestamp' === $data_type ) {
-			$precision = $node->get_descendant_node( 'typeDatetimePrecision' );
+			$precision = $node->get_first_descendant_node( 'typeDatetimePrecision' );
 			if ( null === $precision ) {
 				return 0;
 			} else {
@@ -1357,30 +1357,30 @@ class WP_SQLite_Information_Schema_Builder {
 	}
 
 	private function get_column_generation_expression( WP_Parser_Node $node ): string {
-		if ( null !== $node->get_descendant_token( WP_MySQL_Lexer::GENERATED_SYMBOL ) ) {
-			$expr = $node->get_descendant_node( 'exprWithParentheses' );
+		if ( null !== $node->get_first_descendant_token( WP_MySQL_Lexer::GENERATED_SYMBOL ) ) {
+			$expr = $node->get_first_descendant_node( 'exprWithParentheses' );
 			return $this->get_value( $expr );
 		}
 		return '';
 	}
 
 	private function get_index_name( WP_Parser_Node $node ): string {
-		if ( $node->get_descendant_token( WP_MySQL_Lexer::PRIMARY_SYMBOL ) ) {
+		if ( $node->get_first_descendant_token( WP_MySQL_Lexer::PRIMARY_SYMBOL ) ) {
 			return 'PRIMARY';
 		}
 
-		$name_node = $node->get_descendant_node( 'indexName' );
+		$name_node = $node->get_first_descendant_node( 'indexName' );
 		if ( null === $name_node ) {
 			/*
 			 * In MySQL, the default index name equals the first column name.
 			 * For functional indexes, the string "functional_index" is used.
 			 * If the name is already used, we need to append a number.
 			 */
-			$subnode = $node->get_child_node( 'keyListVariants' )->get_child_node();
+			$subnode = $node->get_first_child_node( 'keyListVariants' )->get_first_child_node();
 			if ( 'exprWithParentheses' === $subnode->rule_name ) {
 				$name = 'functional_index';
 			} else {
-				$name = $this->get_value( $subnode->get_descendant_node( 'identifier' ) );
+				$name = $this->get_value( $subnode->get_first_descendant_node( 'identifier' ) );
 			}
 
 			// @TODO: Check if the name is already used.
@@ -1405,10 +1405,10 @@ class WP_SQLite_Information_Schema_Builder {
 		bool $has_spatial_column
 	): string {
 		// Handle "USING ..." clause.
-		$index_type = $node->get_descendant_node( 'indexTypeClause' );
+		$index_type = $node->get_first_descendant_node( 'indexTypeClause' );
 		if ( null !== $index_type ) {
 			$index_type = strtoupper(
-				$this->get_value( $index_type->get_child_node( 'indexType' ) )
+				$this->get_value( $index_type->get_first_child_node( 'indexType' ) )
 			);
 			if ( 'RTREE' === $index_type ) {
 				return 'SPATIAL';
@@ -1438,7 +1438,7 @@ class WP_SQLite_Information_Schema_Builder {
 		if ( 'keyPart' !== $node->rule_name ) {
 			return null;
 		}
-		return $this->get_value( $node->get_descendant_node( 'identifier' ) );
+		return $this->get_value( $node->get_first_descendant_node( 'identifier' ) );
 	}
 
 	private function get_index_column_collation( WP_Parser_Node $node, string $index_type ): ?string {
@@ -1446,7 +1446,7 @@ class WP_SQLite_Information_Schema_Builder {
 			return null;
 		}
 
-		$collate_node = $node->get_descendant_node( 'collationName' );
+		$collate_node = $node->get_first_descendant_node( 'collationName' );
 		if ( null === $collate_node ) {
 			return 'A';
 		}
@@ -1459,7 +1459,7 @@ class WP_SQLite_Information_Schema_Builder {
 		?int $max_length,
 		bool $is_spatial
 	): ?int {
-		$field_length = $node->get_descendant_node( 'fieldLength' );
+		$field_length = $node->get_first_descendant_node( 'fieldLength' );
 		if ( null === $field_length ) {
 			if ( $is_spatial ) {
 				return 32;

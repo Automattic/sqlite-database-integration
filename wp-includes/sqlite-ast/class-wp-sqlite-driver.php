@@ -453,13 +453,13 @@ class WP_SQLite_Driver {
 			}
 
 			// Handle transaction commands.
-			$child = $ast->get_child();
+			$child = $ast->get_first_child();
 			if ( $child instanceof WP_Parser_Node && 'beginWork' === $child->rule_name ) {
 				return $this->begin_transaction();
 			}
 
 			if ( $child instanceof WP_Parser_Node && 'simpleStatement' === $child->rule_name ) {
-				$subchild = $child->get_child_node( 'transactionOrLockingStatement' );
+				$subchild = $child->get_first_child_node( 'transactionOrLockingStatement' );
 				if ( null !== $subchild ) {
 					$tokens = $subchild->get_descendant_tokens();
 					$token1 = $tokens[0];
@@ -665,7 +665,7 @@ class WP_SQLite_Driver {
 			throw new Exception( sprintf( 'Expected 1 child, got: %d', count( $children ) ) );
 		}
 
-		$ast = $children[0]->get_child_node();
+		$ast = $children[0]->get_first_child_node();
 		switch ( $ast->rule_name ) {
 			case 'selectStatement':
 				$this->execute_select_statement( $ast );
@@ -681,7 +681,7 @@ class WP_SQLite_Driver {
 				$this->execute_delete_statement( $ast );
 				break;
 			case 'createStatement':
-				$subtree = $ast->get_child_node();
+				$subtree = $ast->get_first_child_node();
 				switch ( $subtree->rule_name ) {
 					case 'createTable':
 						$this->execute_create_table_statement( $ast );
@@ -697,7 +697,7 @@ class WP_SQLite_Driver {
 				}
 				break;
 			case 'alterStatement':
-				$subtree = $ast->get_child_node();
+				$subtree = $ast->get_first_child_node();
 				switch ( $subtree->rule_name ) {
 					case 'alterTable':
 						$this->execute_alter_table_statement( $ast );
@@ -713,7 +713,7 @@ class WP_SQLite_Driver {
 				}
 				break;
 			case 'dropStatement':
-				$subtree = $ast->get_child_node();
+				$subtree = $ast->get_first_child_node();
 				switch ( $subtree->rule_name ) {
 					case 'dropTable':
 						$this->execute_drop_table_statement( $ast );
@@ -735,7 +735,7 @@ class WP_SQLite_Driver {
 				$this->execute_show_statement( $ast );
 				break;
 			case 'utilityStatement':
-				$subtree = $ast->get_child_node();
+				$subtree = $ast->get_first_child_node();
 				switch ( $subtree->rule_name ) {
 					case 'describeStatement':
 						$this->execute_describe_statement( $subtree );
@@ -756,39 +756,39 @@ class WP_SQLite_Driver {
 	}
 
 	private function execute_select_statement( WP_Parser_Node $node ): void {
-		$has_sql_calc_found_rows = null !== $node->get_descendant_token(
+		$has_sql_calc_found_rows = null !== $node->get_first_descendant_token(
 			WP_MySQL_Lexer::SQL_CALC_FOUND_ROWS_SYMBOL
 		);
 
 		// First, translate the query, before we modify last found rows count.
-		$query = $this->translate( $node->get_child() );
+		$query = $this->translate( $node->get_first_child() );
 
 		// Handle SQL_CALC_FOUND_ROWS.
 		if ( true === $has_sql_calc_found_rows ) {
 			// Recursively find a query expression with the first LIMIT or SELECT.
-			$query_expr = $node->get_descendant_node( 'queryExpression' );
+			$query_expr = $node->get_first_descendant_node( 'queryExpression' );
 			while ( true ) {
 				if ( $query_expr->has_child_node( 'limitClause' ) ) {
 					break;
 				}
 
-				$query_expr_parens = $query_expr->get_child_node( 'queryExpressionParens' );
+				$query_expr_parens = $query_expr->get_first_child_node( 'queryExpressionParens' );
 				if ( null !== $query_expr_parens ) {
-					$query_expr = $query_expr_parens->get_child_node( 'queryExpression' );
+					$query_expr = $query_expr_parens->get_first_child_node( 'queryExpression' );
 					continue;
 				}
 
-				$query_expr_body = $query_expr->get_child_node( 'queryExpressionBody' );
+				$query_expr_body = $query_expr->get_first_child_node( 'queryExpressionBody' );
 				if ( count( $query_expr_body->get_children() ) > 1 ) {
 					break;
 				}
 
-				$query_term = $query_expr_body->get_child_node( 'queryTerm' );
+				$query_term = $query_expr_body->get_first_child_node( 'queryTerm' );
 				if (
 					count( $query_term->get_children() ) === 1
 					&& $query_term->has_child_node( 'queryExpressionParens' )
 				) {
-					$query_expr = $query_term->get_child_node( 'queryExpressionParens' )->get_child_node( 'queryExpression' );
+					$query_expr = $query_term->get_first_child_node( 'queryExpressionParens' )->get_first_child_node( 'queryExpression' );
 					continue;
 				}
 
@@ -849,10 +849,10 @@ class WP_SQLite_Driver {
 		if ( $has_order || $has_limit ) {
 			$where_subquery = 'SELECT rowid FROM ' . $this->translate_sequence(
 				array(
-					$node->get_child_node( 'tableReferenceList' ),
-					$node->get_child_node( 'whereClause' ),
-					$node->get_child_node( 'orderClause' ),
-					$node->get_child_node( 'simpleLimitClause' ),
+					$node->get_first_child_node( 'tableReferenceList' ),
+					$node->get_first_child_node( 'whereClause' ),
+					$node->get_first_child_node( 'orderClause' ),
+					$node->get_first_child_node( 'simpleLimitClause' ),
 				)
 			);
 		}
@@ -899,7 +899,7 @@ class WP_SQLite_Driver {
 		 * We will rewrite such statements into a SELECT to fetch the ROWIDs of
 		 * the rows to delete and then execute a DELETE statement for each table.
 		 */
-		$alias_ref_list = $node->get_child_node( 'tableAliasRefList' );
+		$alias_ref_list = $node->get_first_child_node( 'tableAliasRefList' );
 		if ( null !== $alias_ref_list ) {
 			// 1. Get table aliases targeted by the DELETE statement.
 			$table_aliases = array();
@@ -911,22 +911,22 @@ class WP_SQLite_Driver {
 
 			// 2. Create an alias to table name map.
 			$alias_map      = array();
-			$table_ref_list = $node->get_child_node( 'tableReferenceList' );
+			$table_ref_list = $node->get_first_child_node( 'tableReferenceList' );
 			foreach ( $table_ref_list->get_descendant_nodes( 'singleTable' ) as $single_table ) {
 				$alias = $this->unquote_sqlite_identifier(
-					$this->translate( $single_table->get_child_node( 'tableAlias' ) )
+					$this->translate( $single_table->get_first_child_node( 'tableAlias' ) )
 				);
 				$ref   = $this->unquote_sqlite_identifier(
-					$this->translate( $single_table->get_child_node( 'tableRef' ) )
+					$this->translate( $single_table->get_first_child_node( 'tableRef' ) )
 				);
 
 				$alias_map[ $alias ] = $ref;
 			}
 
 			// 3. Compose the SELECT query to fetch ROWIDs to delete.
-			$where_clause = $node->get_child_node( 'whereClause' );
+			$where_clause = $node->get_first_child_node( 'whereClause' );
 			if ( null !== $where_clause ) {
-				$where = $this->translate( $where_clause->get_child_node( 'expr' ) );
+				$where = $this->translate( $where_clause->get_first_child_node( 'expr' ) );
 			}
 
 			$select_list = array();
@@ -972,9 +972,9 @@ class WP_SQLite_Driver {
 	}
 
 	private function execute_create_table_statement( WP_Parser_Node $node ): void {
-		$subnode      = $node->get_child_node();
+		$subnode      = $node->get_first_child_node();
 		$is_temporary = $subnode->has_child_token( WP_MySQL_Lexer::TEMPORARY_SYMBOL );
-		$element_list = $subnode->get_child_node( 'tableElementList' );
+		$element_list = $subnode->get_first_child_node( 'tableElementList' );
 		if ( true === $is_temporary || null === $element_list ) {
 			$query = $this->translate( $node ) . ' STRICT';
 			$this->execute_sqlite_query( $query );
@@ -983,7 +983,7 @@ class WP_SQLite_Driver {
 		}
 
 		$table_name = $this->unquote_sqlite_identifier(
-			$this->translate( $subnode->get_child_node( 'tableName' ) )
+			$this->translate( $subnode->get_first_child_node( 'tableName' ) )
 		);
 
 		if ( $subnode->has_child_node( 'ifNotExists' ) ) {
@@ -1015,7 +1015,7 @@ class WP_SQLite_Driver {
 
 	private function execute_alter_table_statement( WP_Parser_Node $node ): void {
 		$table_name = $this->unquote_sqlite_identifier(
-			$this->translate( $node->get_descendant_node( 'tableRef' ) )
+			$this->translate( $node->get_first_descendant_node( 'tableRef' ) )
 		);
 
 		// Save all column names from the original table.
@@ -1032,11 +1032,11 @@ class WP_SQLite_Driver {
 		// Track column renames and removals.
 		$column_map = array_combine( $column_names, $column_names );
 		foreach ( $node->get_descendant_nodes( 'alterListItem' ) as $action ) {
-			$first_token = $action->get_child_token();
+			$first_token = $action->get_first_child_token();
 
 			switch ( $first_token->id ) {
 				case WP_MySQL_Lexer::DROP_SYMBOL:
-					$name = $this->translate( $action->get_child_node( 'columnInternalRef' ) );
+					$name = $this->translate( $action->get_first_child_node( 'columnInternalRef' ) );
 					if ( null !== $name ) {
 						$name = $this->unquote_sqlite_identifier( $name );
 						unset( $column_map[ $name ] );
@@ -1044,22 +1044,22 @@ class WP_SQLite_Driver {
 					break;
 				case WP_MySQL_Lexer::CHANGE_SYMBOL:
 					$old_name = $this->unquote_sqlite_identifier(
-						$this->translate( $action->get_child_node( 'columnInternalRef' ) )
+						$this->translate( $action->get_first_child_node( 'columnInternalRef' ) )
 					);
 					$new_name = $this->unquote_sqlite_identifier(
-						$this->translate( $action->get_child_node( 'identifier' ) )
+						$this->translate( $action->get_first_child_node( 'identifier' ) )
 					);
 
 					$column_map[ $old_name ] = $new_name;
 					break;
 				case WP_MySQL_Lexer::RENAME_SYMBOL:
-					$column_ref = $action->get_child_node( 'columnInternalRef' );
+					$column_ref = $action->get_first_child_node( 'columnInternalRef' );
 					if ( null !== $column_ref ) {
 						$old_name = $this->unquote_sqlite_identifier(
 							$this->translate( $column_ref )
 						);
 						$new_name = $this->unquote_sqlite_identifier(
-							$this->translate( $action->get_child_node( 'identifier' ) )
+							$this->translate( $action->get_first_child_node( 'identifier' ) )
 						);
 
 						$column_map[ $old_name ] = $new_name;
@@ -1135,11 +1135,11 @@ class WP_SQLite_Driver {
 	}
 
 	private function execute_drop_table_statement( WP_Parser_Node $node ): void {
-		$child_node = $node->get_child_node();
+		$child_node = $node->get_first_child_node();
 
 		// MySQL supports removing multiple tables in a single query DROP query.
 		// In SQLite, we need to execute each DROP TABLE statement separately.
-		$table_refs   = $child_node->get_child_node( 'tableRefList' )->get_child_nodes();
+		$table_refs   = $child_node->get_first_child_node( 'tableRefList' )->get_child_nodes();
 		$is_temporary = $child_node->has_child_token( WP_MySQL_Lexer::TEMPORARY_SYMBOL );
 		$queries      = array();
 		foreach ( $table_refs as $table_ref ) {
@@ -1183,7 +1183,7 @@ class WP_SQLite_Driver {
 			case WP_MySQL_Lexer::CREATE_SYMBOL:
 				if ( WP_MySQL_Lexer::TABLE_SYMBOL === $keyword2->id ) {
 					$table_name = $this->unquote_sqlite_identifier(
-						$this->translate( $node->get_child_node( 'tableRef' ) )
+						$this->translate( $node->get_first_child_node( 'tableRef' ) )
 					);
 
 					$sql = $this->get_mysql_create_table_statement( $table_name );
@@ -1205,7 +1205,7 @@ class WP_SQLite_Driver {
 			case WP_MySQL_Lexer::INDEXES_SYMBOL:
 			case WP_MySQL_Lexer::KEYS_SYMBOL:
 				$table_name = $this->unquote_sqlite_identifier(
-					$this->translate( $node->get_child_node( 'tableRef' ) )
+					$this->translate( $node->get_first_child_node( 'tableRef' ) )
 				);
 				$this->execute_show_index_statement( $table_name );
 				break;
@@ -1273,11 +1273,11 @@ class WP_SQLite_Driver {
 
 	private function execute_show_table_status_statement( WP_Parser_Node $node ): void {
 		// FROM/IN database.
-		$in_db    = $node->get_child_node( 'idDb' );
+		$in_db    = $node->get_first_child_node( 'idDb' );
 		$database = null === $in_db ? $this->db_name : $this->translate( $in_db );
 
 		// LIKE and WHERE clauses.
-		$like_or_where = $node->get_child_node( 'likeOrWhere' );
+		$like_or_where = $node->get_first_child_node( 'likeOrWhere' );
 		if ( null !== $like_or_where ) {
 			$condition = $this->get_show_like_or_where_condition( $like_or_where );
 		}
@@ -1325,11 +1325,11 @@ class WP_SQLite_Driver {
 
 	private function execute_show_tables_statement( WP_Parser_Node $node ): void {
 		// FROM/IN database.
-		$in_db    = $node->get_child_node( 'idDb' );
+		$in_db    = $node->get_first_child_node( 'idDb' );
 		$database = null === $in_db ? $this->db_name : $this->translate( $in_db );
 
 		// LIKE and WHERE clauses.
-		$like_or_where = $node->get_child_node( 'likeOrWhere' );
+		$like_or_where = $node->get_first_child_node( 'likeOrWhere' );
 		if ( null !== $like_or_where ) {
 			$condition = $this->get_show_like_or_where_condition( $like_or_where );
 		}
@@ -1348,7 +1348,7 @@ class WP_SQLite_Driver {
 		}
 
 		// Handle the FULL keyword.
-		$command_type = $node->get_child_node( 'showCommandType' );
+		$command_type = $node->get_first_child_node( 'showCommandType' );
 		$is_full      = $command_type && $command_type->has_child_token( WP_MySQL_Lexer::FULL_SYMBOL );
 
 		// Format the results.
@@ -1368,7 +1368,7 @@ class WP_SQLite_Driver {
 
 	private function execute_describe_statement( WP_Parser_Node $node ): void {
 		$table_name = $this->unquote_sqlite_identifier(
-			$this->translate( $node->get_child_node( 'tableRef' ) )
+			$this->translate( $node->get_first_child_node( 'tableRef' ) )
 		);
 
 		$column_info = $this->execute_sqlite_query(
@@ -1425,14 +1425,14 @@ class WP_SQLite_Driver {
 			case 'dotIdentifier':
 				return $this->translate_sequence( $ast->get_children(), '' );
 			case 'identifierKeyword':
-				return '`' . $this->translate( $ast->get_child() ) . '`';
+				return '`' . $this->translate( $ast->get_first_child() ) . '`';
 			case 'pureIdentifier':
 				return $this->translate_pure_identifier( $ast );
 			case 'textStringLiteral':
 				return $this->translate_string_literal( $ast );
 			case 'dataType':
 			case 'nchar':
-				$child = $ast->get_child();
+				$child = $ast->get_first_child();
 				if ( $child instanceof WP_Parser_Node ) {
 					return $this->translate( $child );
 				}
@@ -1475,12 +1475,12 @@ class WP_SQLite_Driver {
 				// Translate "ON DUPLICATE KEY UPDATE" to "ON CONFLICT DO UPDATE SET".
 				return sprintf(
 					'ON CONFLICT DO UPDATE SET %s',
-					$this->translate( $ast->get_child_node( 'updateList' ) )
+					$this->translate( $ast->get_first_child_node( 'updateList' ) )
 				);
 			case 'simpleExpr':
 				return $this->translate_simple_expr( $ast );
 			case 'predicateOperations':
-				$token = $ast->get_child_token();
+				$token = $ast->get_first_child_token();
 				if ( WP_MySQL_Lexer::LIKE_SYMBOL === $token->id ) {
 					return $this->translate_like( $ast );
 				} elseif ( WP_MySQL_Lexer::REGEXP_SYMBOL === $token->id ) {
@@ -1511,7 +1511,7 @@ class WP_SQLite_Driver {
 				// @TODO: How to handle IGNORE/REPLACE?
 
 				// The "AS" keyword is optional in MySQL, but required in SQLite.
-				return 'AS ' . $this->translate( $ast->get_child_node() );
+				return 'AS ' . $this->translate( $ast->get_first_child_node() );
 			case 'indexHint':
 			case 'indexHintList':
 				return null;
@@ -1564,7 +1564,7 @@ class WP_SQLite_Driver {
 	}
 
 	private function translate_string_literal( WP_Parser_Node $node ): string {
-		$token = $node->get_child_token();
+		$token = $node->get_first_child_token();
 
 		/*
 		 * 1. Remove bounding quotes.
@@ -1647,7 +1647,7 @@ class WP_SQLite_Driver {
 	}
 
 	private function translate_pure_identifier( WP_Parser_Node $node ): string {
-		$token = $node->get_child_token();
+		$token = $node->get_first_child_token();
 
 		if ( WP_MySQL_Lexer::DOUBLE_QUOTED_TEXT === $token->id ) {
 			$value = substr( $token->value, 1, -1 );
@@ -1663,13 +1663,13 @@ class WP_SQLite_Driver {
 	}
 
 	private function translate_simple_expr( WP_Parser_Node $node ): string {
-		$token = $node->get_child_token();
+		$token = $node->get_first_child_token();
 
 		// Translate "VALUES(col)" to "excluded.col" in ON DUPLICATE KEY UPDATE.
 		if ( null !== $token && WP_MySQL_Lexer::VALUES_SYMBOL === $token->id ) {
 			return sprintf(
 				'`excluded`.%s',
-				$this->translate( $node->get_child_node( 'simpleIdentifier' ) )
+				$this->translate( $node->get_first_child_node( 'simpleIdentifier' ) )
 			);
 		}
 
@@ -1727,13 +1727,13 @@ class WP_SQLite_Driver {
 		 * regular expressions anyway.
 		 */
 		if ( true === $is_binary ) {
-			return 'REGEXP CHAR(0) || ' . $this->translate( $node->get_child_node() );
+			return 'REGEXP CHAR(0) || ' . $this->translate( $node->get_first_child_node() );
 		}
-		return 'REGEXP ' . $this->translate( $node->get_child_node() );
+		return 'REGEXP ' . $this->translate( $node->get_first_child_node() );
 	}
 
 	private function translate_runtime_function_call( WP_Parser_Node $node ): string {
-		$child = $node->get_child();
+		$child = $node->get_first_child();
 		if ( $child instanceof WP_Parser_Node ) {
 			return $this->translate( $child );
 		}
@@ -2201,18 +2201,18 @@ class WP_SQLite_Driver {
 	}
 
 	private function get_show_like_or_where_condition( WP_Parser_Node $like_or_where ): string {
-		$like_clause = $like_or_where->get_child_node( 'likeClause' );
+		$like_clause = $like_or_where->get_first_child_node( 'likeClause' );
 		if ( null !== $like_clause ) {
 			$value = $this->translate(
-				$like_clause->get_child_node( 'textStringLiteral' )
+				$like_clause->get_first_child_node( 'textStringLiteral' )
 			);
 			return sprintf( "AND table_name LIKE %s ESCAPE '\\'", $value );
 		}
 
-		$where_clause = $like_or_where->get_child_node( 'whereClause' );
+		$where_clause = $like_or_where->get_first_child_node( 'whereClause' );
 		if ( null !== $where_clause ) {
 			$value = $this->translate(
-				$where_clause->get_child_node( 'expr' )
+				$where_clause->get_first_child_node( 'expr' )
 			);
 			return sprintf( 'AND %s', $value );
 		}

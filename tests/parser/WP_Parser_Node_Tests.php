@@ -12,14 +12,14 @@ class WP_Parser_Node_Tests extends TestCase {
 		$this->assertFalse( $node->has_child_node() );
 		$this->assertFalse( $node->has_child_token() );
 
-		$this->assertNull( $node->get_child() );
-		$this->assertNull( $node->get_child_node() );
-		$this->assertNull( $node->get_child_node( 'root' ) );
-		$this->assertNull( $node->get_child_token() );
-		$this->assertNull( $node->get_child_token( 1 ) );
+		$this->assertNull( $node->get_first_child() );
+		$this->assertNull( $node->get_first_child_node() );
+		$this->assertNull( $node->get_first_child_node( 'root' ) );
+		$this->assertNull( $node->get_first_child_token() );
+		$this->assertNull( $node->get_first_child_token( 1 ) );
 
-		$this->assertNull( $node->get_descendant_node() );
-		$this->assertNull( $node->get_descendant_token() );
+		$this->assertNull( $node->get_first_descendant_node() );
+		$this->assertNull( $node->get_first_descendant_token() );
 
 		$this->assertEmpty( $node->get_children() );
 		$this->assertEmpty( $node->get_child_nodes() );
@@ -84,13 +84,13 @@ class WP_Parser_Node_Tests extends TestCase {
 		$this->assertTrue( $root->has_child_token() );
 
 		// Test single child methods.
-		$this->assertSame( $n_keyword, $root->get_child() );
-		$this->assertSame( $n_keyword, $root->get_child_node() );
-		$this->assertSame( $n_keyword, $root->get_child_node( 'keyword' ) );
-		$this->assertSame( $n_expr_a, $root->get_child_node( 'expr' ) );
-		$this->assertSame( $t_comma, $root->get_child_token() );
-		$this->assertSame( $t_comma, $root->get_child_token( 200 ) );
-		$this->assertNull( $root->get_child_token( 100 ) );
+		$this->assertSame( $n_keyword, $root->get_first_child() );
+		$this->assertSame( $n_keyword, $root->get_first_child_node() );
+		$this->assertSame( $n_keyword, $root->get_first_child_node( 'keyword' ) );
+		$this->assertSame( $n_expr_a, $root->get_first_child_node( 'expr' ) );
+		$this->assertSame( $t_comma, $root->get_first_child_token() );
+		$this->assertSame( $t_comma, $root->get_first_child_token( 200 ) );
+		$this->assertNull( $root->get_first_child_token( 100 ) );
 
 		// Test multiple children methods.
 		$this->assertSame( array( $n_keyword, $n_expr_a, $t_comma, $n_expr_b, $t_eof ), $root->get_children() );
@@ -103,12 +103,12 @@ class WP_Parser_Node_Tests extends TestCase {
 
 		// Test single descendant methods.
 		// @TODO: Consider breadth-first search vs depth-first search.
-		$this->assertSame( $n_keyword, $root->get_descendant_node() );
-		$this->assertSame( $n_expr_a, $root->get_descendant_node( 'expr' ) );
-		$this->assertSame( null, $root->get_descendant_node( 'root' ) );
-		$this->assertSame( $t_comma, $root->get_descendant_token() );
-		$this->assertSame( $t_one, $root->get_descendant_token( 400 ) );
-		$this->assertSame( null, $root->get_descendant_token( 123 ) );
+		$this->assertSame( $n_keyword, $root->get_first_descendant_node() );
+		$this->assertSame( $n_expr_a, $root->get_first_descendant_node( 'expr' ) );
+		$this->assertSame( null, $root->get_first_descendant_node( 'root' ) );
+		$this->assertSame( $t_comma, $root->get_first_descendant_token() );
+		$this->assertSame( $t_one, $root->get_first_descendant_token( 400 ) );
+		$this->assertSame( null, $root->get_first_descendant_token( 123 ) );
 
 		// Test multiple descendant methods.
 		// @TODO: Consider breadth-first search vs depth-first search.

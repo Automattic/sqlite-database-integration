@@ -131,11 +131,11 @@ class WP_Parser_Node {
 	}
 
 
-	public function get_child() {
+	public function get_first_child() {
 		return $this->children[0] ?? null;
 	}
 
-	public function get_child_node( ?string $rule_name = null ): ?WP_Parser_Node {
+	public function get_first_child_node( ?string $rule_name = null ): ?WP_Parser_Node {
 		foreach ( $this->children as $child ) {
 			if (
 				$child instanceof WP_Parser_Node
@@ -147,7 +147,7 @@ class WP_Parser_Node {
 		return null;
 	}
 
-	public function get_child_token( ?int $token_id = null ): ?WP_Parser_Token {
+	public function get_first_child_token( ?int $token_id = null ): ?WP_Parser_Token {
 		foreach ( $this->children as $child ) {
 			if (
 				$child instanceof WP_Parser_Token
@@ -159,11 +159,11 @@ class WP_Parser_Node {
 		return null;
 	}
 
-	public function get_descendant_node( ?string $rule_name = null ): ?WP_Parser_Node {
+	public function get_first_descendant_node( ?string $rule_name = null ): ?WP_Parser_Node {
 		$nodes = array( $this );
 		while ( count( $nodes ) ) {
 			$node  = array_shift( $nodes );
-			$child = $node->get_child_node( $rule_name );
+			$child = $node->get_first_child_node( $rule_name );
 			if ( $child ) {
 				return $child;
 			}
@@ -175,11 +175,11 @@ class WP_Parser_Node {
 		return null;
 	}
 
-	public function get_descendant_token( ?int $token_id = null ): ?WP_Parser_Token {
+	public function get_first_descendant_token( ?int $token_id = null ): ?WP_Parser_Token {
 		$nodes = array( $this );
 		while ( count( $nodes ) ) {
 			$node  = array_shift( $nodes );
-			$child = $node->get_child_token( $token_id );
+			$child = $node->get_first_child_token( $token_id );
 			if ( $child ) {
 				return $child;
 			}
