@@ -3683,4 +3683,59 @@ QUERY
 			'no such column: non_existent_column'
 		);
 	}
+
+	public function testUnion(): void {
+		$this->assertQuery( 'CREATE TABLE t (id INT, name VARCHAR(20))' );
+		$this->assertQuery( "INSERT INTO t (id, name) VALUES (1, 'a')" );
+		$this->assertQuery( "INSERT INTO t (id, name) VALUES (2, 'b')" );
+
+		$this->assertQuery(
+			'SELECT name FROM t WHERE id = 1 UNION SELECT name FROM t WHERE id = 2'
+		);
+		$this->assertEquals(
+			array(
+				(object) array( 'name' => 'a' ),
+				(object) array( 'name' => 'b' ),
+			),
+			$this->engine->get_query_results()
+		);
+
+		$this->assertQuery(
+			'SELECT name FROM t WHERE id = 1 UNION SELECT name FROM t WHERE id = 1'
+		);
+		$this->assertEquals(
+			array(
+				(object) array( 'name' => 'a' ),
+			),
+			$this->engine->get_query_results()
+		);
+	}
+
+	public function testUnionAll(): void {
+		$this->assertQuery( 'CREATE TABLE t (id INT, name VARCHAR(20))' );
+		$this->assertQuery( "INSERT INTO t (id, name) VALUES (1, 'a')" );
+		$this->assertQuery( "INSERT INTO t (id, name) VALUES (2, 'b')" );
+
+		$this->assertQuery(
+			'SELECT name FROM t WHERE id = 1 UNION SELECT name FROM t WHERE id = 2'
+		);
+		$this->assertEquals(
+			array(
+				(object) array( 'name' => 'a' ),
+				(object) array( 'name' => 'b' ),
+			),
+			$this->engine->get_query_results()
+		);
+
+		$this->assertQuery(
+			'SELECT name FROM t WHERE id = 1 UNION ALL SELECT name FROM t WHERE id = 1'
+		);
+		$this->assertEquals(
+			array(
+				(object) array( 'name' => 'a' ),
+				(object) array( 'name' => 'a' ),
+			),
+			$this->engine->get_query_results()
+		);
+	}
 }
