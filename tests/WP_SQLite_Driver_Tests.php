@@ -691,7 +691,7 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		);
 
 		$this->assertQuery(
-			'SHOW TABLE STATUS FROM mydb;'
+			'SHOW TABLE STATUS FROM wp;'
 		);
 
 		$this->assertCount(
@@ -714,7 +714,7 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		);
 
 		$this->assertQuery(
-			'SHOW TABLE STATUS IN mydb;'
+			'SHOW TABLE STATUS IN wp;'
 		);
 
 		$this->assertCount(
@@ -744,7 +744,7 @@ class WP_SQLite_Driver_Tests extends TestCase {
 			);"
 		);
 		$this->assertQuery(
-			'SHOW TABLE STATUS IN mydb;'
+			'SHOW TABLE STATUS IN wp;'
 		);
 
 		$this->assertCount(

@@ -1273,8 +1273,14 @@ class WP_SQLite_Driver {
 
 	private function execute_show_table_status_statement( WP_Parser_Node $node ): void {
 		// FROM/IN database.
-		$in_db    = $node->get_first_child_node( 'idDb' );
-		$database = null === $in_db ? $this->db_name : $this->translate( $in_db );
+		$in_db = $node->get_first_child_node( 'inDb' );
+		if ( null === $in_db ) {
+			$database = $this->db_name;
+		} else {
+			$database = $this->unquote_sqlite_identifier(
+				$this->translate( $in_db->get_first_child_node( 'identifier' ) )
+			);
+		}
 
 		// LIKE and WHERE clauses.
 		$like_or_where = $node->get_first_child_node( 'likeOrWhere' );
@@ -1325,8 +1331,14 @@ class WP_SQLite_Driver {
 
 	private function execute_show_tables_statement( WP_Parser_Node $node ): void {
 		// FROM/IN database.
-		$in_db    = $node->get_first_child_node( 'idDb' );
-		$database = null === $in_db ? $this->db_name : $this->translate( $in_db );
+		$in_db = $node->get_first_child_node( 'inDb' );
+		if ( null === $in_db ) {
+			$database = $this->db_name;
+		} else {
+			$database = $this->unquote_sqlite_identifier(
+				$this->translate( $in_db->get_first_child_node( 'identifier' ) )
+			);
+		}
 
 		// LIKE and WHERE clauses.
 		$like_or_where = $node->get_first_child_node( 'likeOrWhere' );
