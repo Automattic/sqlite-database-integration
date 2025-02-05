@@ -23,7 +23,12 @@ class WP_SQLite_Driver_Translation_Tests extends TestCase {
 	}
 
 	public function setUp(): void {
-		$this->driver = new WP_SQLite_Driver( 'wp', new PDO( 'sqlite::memory:' ) );
+		$this->driver = new WP_SQLite_Driver(
+			array(
+				'path'     => ':memory:',
+				'database' => 'wp',
+			)
+		);
 	}
 
 	public function testSelect(): void {

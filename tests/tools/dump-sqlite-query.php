@@ -11,7 +11,12 @@ require_once __DIR__ . '/../../wp-includes/sqlite/class-wp-sqlite-pdo-user-defin
 require_once __DIR__ . '/../../wp-includes/sqlite-ast/class-wp-sqlite-information-schema-builder.php';
 require_once __DIR__ . '/../../wp-includes/sqlite-ast/class-wp-sqlite-driver.php';
 
-$driver = new WP_SQLite_Driver( 'wp', new PDO( 'sqlite::memory:' ) );
+$driver = new WP_SQLite_Driver(
+	array(
+		'path'     => ':memory:',
+		'database' => 'wp',
+	)
+);
 
 $query = "SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t1.name = 'abc'";
 

@@ -311,68 +311,105 @@ class WP_SQLite_Driver {
 	/**
 	 * Constructor.
 	 *
-	 * Create PDO object, set user defined functions and initialize other settings.
-	 * Don't use parent::__construct() because this class does not only returns
-	 * PDO instance but many others jobs.
+	 * Set up an SQLite connection and the MySQL-on-SQLite driver.
 	 *
-	 * @param string $db_name The database name. In WordPress, the value of DB_NAME.
-	 * @param PDO|null $pdo The PDO object.
+	 * @param array $options {
+	 *     An array of options.
+	 *
+	 *     @type string      $database            Database name.
+	 *                                            The name of the emulated MySQL database.
+	 *     @type string|null $path                Optional. SQLite database path.
+	 *                                            For in-memory database, use ':memory:'.
+	 *                                            Must be set when PDO instance is not provided.
+	 *     @type PDO|null    $connection          Optional. PDO instance with SQLite connection.
+	 *                                            If not provided, a new PDO instance will be created.
+	 *     @type int|null    $timeout             Optional. SQLite timeout in seconds.
+	 *                                            The time to wait for a writable lock.
+	 *     @type string|null $sqlite_journal_mode Optional. SQLite journal mode.
+	 * }
 	 */
-	public function __construct( string $db_name, ?PDO $pdo = null ) {
-		$this->db_name = $db_name;
-		if ( ! $pdo ) {
-			if ( ! is_file( FQDB ) ) {
+	public function __construct( array $options ) {
+		// Database name.
+		if ( ! isset( $options['database'] ) || ! is_string( $options['database'] ) ) {
+			throw new InvalidArgumentException( 'Option "database" is required.' );
+		}
+		$this->db_name = $options['database'];
+
+		// Database connection.
+		if ( isset( $options['connection'] ) && $options['connection'] instanceof PDO ) {
+			$this->pdo = $options['connection'];
+		}
+
+		// Create a PDO connection if it is not provided.
+		if ( ! $this->pdo ) {
+			if ( ! isset( $options['path'] ) || ! is_string( $options['path'] ) ) {
+				throw new InvalidArgumentException( 'Option "path" is required when "connection" is not provided.' );
+			}
+			$path = $options['path'];
+
+			if ( ':memory:' !== $path && ! is_file( $path ) ) {
 				$this->prepare_directory();
 			}
 
 			try {
-				$options = array(
-					PDO::ATTR_ERRMODE           => PDO::ERRMODE_EXCEPTION,
-					PDO::ATTR_STRINGIFY_FETCHES => true,
-					PDO::ATTR_TIMEOUT           => self::DEFAULT_TIMEOUT,
-				);
-
-				$dsn = 'sqlite:' . FQDB;
-				$pdo = new PDO( $dsn, null, null, $options );
-			} catch ( PDOException $ex ) {
+				$this->pdo = new PDO( 'sqlite:' . $path );
+			} catch ( PDOException $e ) {
 				$this->error_messages[] = sprintf(
 					'<p>%s</p><p>%s</p><p>%s</p>',
 					'Database initialization error!',
-					'Code: ' . $ex->getCode(),
-					'Error Message: ' . $ex->getMessage()
+					'Code: ' . $e->getCode(),
+					'Error Message: ' . $e->getMessage()
 				);
 				return;
 			}
 		}
 
-		WP_SQLite_PDO_User_Defined_Functions::register_for( $pdo );
+		// Throw exceptions on error.
+		$this->pdo->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
 
-		// MySQL data comes across stringified by default.
-		$pdo->setAttribute( PDO::ATTR_STRINGIFY_FETCHES, true );
+		// Configure SQLite timeout.
+		if ( isset( $options['timeout'] ) && is_int( $options['timeout'] ) ) {
+			$timeout = $options['timeout'];
+		} else {
+			$timeout = self::DEFAULT_TIMEOUT;
+		}
+		$this->pdo->setAttribute( PDO::ATTR_TIMEOUT, $timeout );
 
-		$this->pdo = $pdo;
+		// Return all values (except null) as strings.
+		$this->pdo->setAttribute( PDO::ATTR_STRINGIFY_FETCHES, true );
 
-		$this->information_schema_builder = new WP_SQLite_Information_Schema_Builder(
-			$this->db_name,
-			array( $this, 'execute_sqlite_query' )
-		);
-		$this->information_schema_builder->ensure_information_schema_tables();
+		// Enable foreign keys. By default, they are off.
+		$this->pdo->query( 'PRAGMA foreign_keys = ON' );
+
+		// Configure SQLite journal mode.
+		if (
+			isset( $options['sqlite_journal_mode'] )
+			&& in_array(
+				$options['sqlite_journal_mode'],
+				array( 'DELETE', 'TRUNCATE', 'PERSIST', 'MEMORY', 'WAL', 'OFF' ),
+				true
+			)
+		) {
+			$this->pdo->query( 'PRAGMA journal_mode = ' . $options['sqlite_journal_mode'] );
+		}
+
+		// Register SQLite functions.
+		WP_SQLite_PDO_User_Defined_Functions::register_for( $this->pdo );
 
 		// Load MySQL grammar.
 		if ( null === self::$grammar ) {
 			self::$grammar = new WP_Parser_Grammar( require self::GRAMMAR_PATH );
 		}
 
+		// Initialize information schema builder.
+		$this->information_schema_builder = new WP_SQLite_Information_Schema_Builder(
+			$this->db_name,
+			array( $this, 'execute_sqlite_query' )
+		);
+		$this->information_schema_builder->ensure_information_schema_tables();
+
 		// Load SQLite version to a property used by WordPress health info.
 		$this->client_info = $this->get_sqlite_version();
-
-		$this->pdo->query( 'PRAGMA foreign_keys = ON' );
-		$this->pdo->query( 'PRAGMA encoding="UTF-8";' );
-
-		$valid_journal_modes = array( 'DELETE', 'TRUNCATE', 'PERSIST', 'MEMORY', 'WAL', 'OFF' );
-		if ( defined( 'SQLITE_JOURNAL_MODE' ) && in_array( SQLITE_JOURNAL_MODE, $valid_journal_modes, true ) ) {
-			$this->pdo->query( 'PRAGMA journal_mode = ' . SQLITE_JOURNAL_MODE );
-		}
 	}
 
 	/**

@@ -35,7 +35,12 @@ class WP_SQLite_Driver_Tests extends TestCase {
 	public function setUp(): void {
 		$this->sqlite = new PDO( 'sqlite::memory:' );
 
-		$this->engine = new WP_SQLite_Driver( 'wp', $this->sqlite );
+		$this->engine = new WP_SQLite_Driver(
+			array(
+				'connection' => $this->sqlite,
+				'database'   => 'wp',
+			)
+		);
 		$this->engine->query(
 			"CREATE TABLE _options (
 					ID INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL,
