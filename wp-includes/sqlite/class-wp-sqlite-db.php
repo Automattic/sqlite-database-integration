@@ -244,6 +244,7 @@ class WP_SQLite_DB extends wpdb {
 			$this->dbh = new WP_SQLite_Driver(
 				array(
 					'connection'          => $pdo,
+					'debug'               => defined( 'PDO_DEBUG' ) && true === PDO_DEBUG,
 					'path'                => FQDB,
 					'database'            => $this->dbname,
 					'sqlite_journal_mode' => defined( 'SQLITE_JOURNAL_MODE' ) ? SQLITE_JOURNAL_MODE : null,

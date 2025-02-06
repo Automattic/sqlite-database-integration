@@ -233,6 +233,13 @@ class WP_SQLite_Driver {
 	private $pdo;
 
 	/**
+	 * Enables debug mode.
+	 *
+	 * @var bool
+	 */
+	private $debug;
+
+	/**
 	 * Last executed MySQL query.
 	 *
 	 * @var string
@@ -323,6 +330,7 @@ class WP_SQLite_Driver {
 	 *                                            Must be set when PDO instance is not provided.
 	 *     @type PDO|null    $connection          Optional. PDO instance with SQLite connection.
 	 *                                            If not provided, a new PDO instance will be created.
+	 *     @type bool        $debug               Optional. Enable debug mode.
 	 *     @type int|null    $timeout             Optional. SQLite timeout in seconds.
 	 *                                            The time to wait for a writable lock.
 	 *     @type string|null $sqlite_journal_mode Optional. SQLite journal mode.
@@ -339,6 +347,9 @@ class WP_SQLite_Driver {
 		if ( isset( $options['connection'] ) && $options['connection'] instanceof PDO ) {
 			$this->pdo = $options['connection'];
 		}
+
+		// Debug mode.
+		$this->debug = isset( $options['debug'] ) && true === $options['debug'];
 
 		// Create a PDO connection if it is not provided.
 		if ( ! $this->pdo ) {
@@ -542,7 +553,7 @@ class WP_SQLite_Driver {
 			} catch ( Throwable $rollback_exception ) {
 				// Ignore rollback errors.
 			}
-			if ( defined( 'PDO_DEBUG' ) && PDO_DEBUG === true ) {
+			if ( true === $this->debug ) {
 				throw $e;
 			}
 			return $this->handle_error( $e );
