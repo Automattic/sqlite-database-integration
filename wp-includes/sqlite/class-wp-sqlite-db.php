@@ -332,7 +332,7 @@ class WP_SQLite_DB extends wpdb {
 			$return_val = true;
 		} elseif ( preg_match( '/^\s*(insert|delete|update|replace)\s/i', $query ) ) {
 			if ( $this->dbh instanceof WP_SQLite_Driver ) {
-				$this->rows_affected = $this->dbh->get_return_value();
+				$this->rows_affected = $this->dbh->get_last_return_value();
 			} else {
 				$this->rows_affected = $this->dbh->get_rows_affected();
 			}

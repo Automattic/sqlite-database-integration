@@ -5,7 +5,19 @@
  * phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO
  */
 
+/**
+ * SQLite driver for MySQL.
+ *
+ * This class emulates a MySQL database server on top of an SQLite database.
+ * It translates queries written in MySQL SQL dialect to an SQLite SQL dialect,
+ * maintains necessary metadata, and executes the translated queries in SQLite.
+ *
+ * The driver requires PDO with the SQLite driver, and the PCRE engine.
+ */
 class WP_SQLite_Driver {
+	/**
+	 * The path to the MySQL SQL grammar file.
+	 */
 	const GRAMMAR_PATH = __DIR__ . '/../../wp-includes/mysql/mysql-grammar.php';
 
 	/**
@@ -14,7 +26,7 @@ class WP_SQLite_Driver {
 	const DEFAULT_TIMEOUT = 10;
 
 	/**
-	 * An identifier prefix for internal objects.
+	 * An identifier prefix for internal database objects.
 	 *
 	 * @TODO: Do not allow accessing objects with this prefix.
 	 */
@@ -151,16 +163,16 @@ class WP_SQLite_Driver {
 	);
 
 	/**
-	 * The MySQL to SQLite date formats translation.
+	 * A map of MySQL to SQLite date format translation.
 	 *
-	 * Maps MySQL formats to SQLite strftime() formats.
+	 * It maps MySQL DATE_FORMAT() formats to SQLite STRFTIME() formats.
 	 *
 	 * For MySQL formats, see:
-	 * * https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_date-format
+	 *   https://dev.mysql.com/doc/refman/5.7/en/date-and-time-functions.html#function_date-format
 	 *
 	 * For SQLite formats, see:
-	 * * https://www.sqlite.org/lang_datefunc.html
-	 * * https://strftime.org/
+	 *   https://www.sqlite.org/lang_datefunc.html
+	 *   https://strftime.org/
 	 */
 	const DATE_FORMAT_TO_STRFTIME_MAP = array(
 		'%a' => '%D',
@@ -196,7 +208,7 @@ class WP_SQLite_Driver {
 	);
 
 	/**
-	 * The SQLite version.
+	 * The SQLite engine version.
 	 *
 	 * This is a mysqli-like property that is needed to avoid a PHP warning in
 	 * the WordPress health info. The "WP_Debug_Data::get_wp_database()" method
@@ -212,108 +224,100 @@ class WP_SQLite_Driver {
 	public $client_info;
 
 	/**
+	 * A MySQL query parser grammar.
+	 *
 	 * @var WP_Parser_Grammar
 	 */
-	private static $grammar;
+	private static $mysql_grammar;
 
 	/**
-	 * The database name. In WordPress, the value of DB_NAME.
+	 * The database name.
 	 *
 	 * @var string
 	 */
 	private $db_name;
 
 	/**
-	 * Class variable to reference to the PDO instance.
+	 * An instance of the PDO object.
 	 *
-	 * @access private
-	 *
-	 * @var PDO object
+	 * @var PDO
 	 */
 	private $pdo;
 
 	/**
-	 * Enables debug mode.
+	 * Whether a debug mode is enabled.
 	 *
 	 * @var bool
 	 */
 	private $debug;
 
 	/**
+	 * @var WP_SQLite_Information_Schema_Builder
+	 */
+	private $information_schema_builder;
+
+	/**
 	 * Last executed MySQL query.
 	 *
 	 * @var string
 	 */
-	private $mysql_query;
+	private $last_mysql_query;
 
 	/**
-	 * A list of executed SQLite queries.
+	 * A list of SQLite queries executed for the last MySQL query.
 	 *
 	 * @var array
 	 */
-	private $sqlite_queries = array();
+	private $last_sqlite_queries = array();
 
 	/**
-	 * Class variable to store the result of the query.
+	 * Results of the last emulated query.
 	 *
-	 * @access private
-	 *
-	 * @var array reference to the PHP object
+	 * @var array|null
 	 */
-	private $results = null;
+	private $last_result;
 
 	/**
-	 * Class variable to store the file name and function to cause error.
+	 * Return value of the last emulated query.
 	 *
-	 * @access private
+	 * @var mixed
+	 */
+	private $last_return_value;
+
+	/**
+	 * Number of rows found by the last SQL_CALC_FOUND_ROW query.
+	 *
+	 * @var int
+	 */
+	private $last_sql_calc_found_rows = null;
+
+	/**
+	 * Error encountered during the last query.
 	 *
 	 * @var array
 	 */
 	private $errors;
 
 	/**
-	 * Class variable to store the error messages.
-	 *
-	 * @access private
+	 * Error messages produced by the last query.
 	 *
 	 * @var array
 	 */
 	private $error_messages = array();
 
 	/**
-	 * Number of rows found by the last SQL_CALC_FOUND_ROW query.
-	 *
-	 * @var int integer
-	 */
-	private $last_sql_calc_found_rows = null;
-
-	/**
-	 * Return value from query().
-	 *
-	 * Each query has its own return value.
-	 *
-	 * @var mixed
-	 */
-	private $return_value;
-
-	/**
-	 * Variable to keep track of nested transactions level.
+	 * Transaction nesting level of the executed SQLite queries.
 	 *
 	 * @var int
 	 */
 	private $transaction_level = 0;
 
 	/**
-	 * The PDO fetch mode passed to query().
+	 * The PDO fetch mode used for the emulated query.
 	 *
 	 * @var mixed
 	 */
 	private $pdo_fetch_mode;
-
-	/**
-	 * @var WP_SQLite_Information_Schema_Builder
-	 */
-	private $information_schema_builder;
 
 	/**
 	 * Constructor.
@@ -406,8 +410,8 @@ class WP_SQLite_Driver {
 		WP_SQLite_PDO_User_Defined_Functions::register_for( $this->pdo );
 
 		// Load MySQL grammar.
-		if ( null === self::$grammar ) {
-			self::$grammar = new WP_Parser_Grammar( require self::GRAMMAR_PATH );
+		if ( null === self::$mysql_grammar ) {
+			self::$mysql_grammar = new WP_Parser_Grammar( require self::GRAMMAR_PATH );
 		}
 
 		// Initialize information schema builder.
@@ -444,8 +448,8 @@ class WP_SQLite_Driver {
 	 *
 	 * @return string|null
 	 */
-	public function get_mysql_query(): ?string {
-		return $this->mysql_query;
+	public function get_last_mysql_query(): ?string {
+		return $this->last_mysql_query;
 	}
 
 	/**
@@ -453,8 +457,8 @@ class WP_SQLite_Driver {
 	 *
 	 * @return array
 	 */
-	public function get_sqlite_queries(): array {
-		return $this->sqlite_queries;
+	public function get_last_sqlite_queries(): array {
+		return $this->last_sqlite_queries;
 	}
 
 	/**
@@ -483,15 +487,15 @@ class WP_SQLite_Driver {
 	 */
 	public function query( string $query, $fetch_mode = PDO::FETCH_OBJ, ...$fetch_mode_args ) {
 		$this->flush();
-		$this->pdo_fetch_mode = $fetch_mode;
-		$this->mysql_query    = $query;
+		$this->pdo_fetch_mode   = $fetch_mode;
+		$this->last_mysql_query = $query;
 
 		try {
 			// Parse the MySQL query.
 			$lexer  = new WP_MySQL_Lexer( $query );
 			$tokens = $lexer->remaining_tokens();
 
-			$parser = new WP_MySQL_Parser( self::$grammar, $tokens );
+			$parser = new WP_MySQL_Parser( self::$mysql_grammar, $tokens );
 			$ast    = $parser->parse();
 
 			if ( null === $ast ) {
@@ -546,7 +550,7 @@ class WP_SQLite_Driver {
 			$this->begin_transaction();
 			$this->execute_mysql_query( $ast );
 			$this->commit();
-			return $this->return_value;
+			return $this->last_return_value;
 		} catch ( Throwable $e ) {
 			try {
 				$this->rollback();
@@ -566,7 +570,7 @@ class WP_SQLite_Driver {
 	 * @return mixed
 	 */
 	public function get_query_results() {
-		return $this->results;
+		return $this->last_result;
 	}
 
 	/**
@@ -574,8 +578,8 @@ class WP_SQLite_Driver {
 	 *
 	 * @return mixed
 	 */
-	public function get_return_value() {
-		return $this->return_value;
+	public function get_last_return_value() {
+		return $this->last_return_value;
 	}
 
 	/**
@@ -592,7 +596,7 @@ class WP_SQLite_Driver {
 	 * }
 	 */
 	public function execute_sqlite_query( $sql, $params = array() ) {
-		$this->sqlite_queries[] = array(
+		$this->last_sqlite_queries[] = array(
 			'sql'    => $sql,
 			'params' => $params,
 		);
@@ -618,10 +622,10 @@ class WP_SQLite_Driver {
 		$output  = '<div style="clear:both">&nbsp;</div>' . PHP_EOL;
 		$output .= '<div class="queries" style="clear:both;margin-bottom:2px;border:red dotted thin;">' . PHP_EOL;
 		$output .= '<p>MySQL query:</p>' . PHP_EOL;
-		$output .= '<p>' . $this->mysql_query . '</p>' . PHP_EOL;
+		$output .= '<p>' . $this->last_mysql_query . '</p>' . PHP_EOL;
 		$output .= '<p>Queries made or created this session were:</p>' . PHP_EOL;
 		$output .= '<ol>' . PHP_EOL;
-		foreach ( $this->sqlite_queries as $q ) {
+		foreach ( $this->last_sqlite_queries as $q ) {
 			$message = "Executing: {$q['sql']} | " . ( $q['params'] ? 'parameters: ' . implode( ', ', $q['params'] ) : '(no parameters)' );
 
 			$output .= '<li>' . htmlspecialchars( $message ) . '</li>' . PHP_EOL;
@@ -778,7 +782,7 @@ class WP_SQLite_Driver {
 				 * It would be lovely to support at least SET autocommit,
 				 * but I don't think that is even possible with SQLite.
 				 */
-				$this->results = 0;
+				$this->last_result = 0;
 				break;
 			case 'showStatement':
 				$this->execute_show_statement( $ast );
@@ -1007,7 +1011,7 @@ class WP_SQLite_Driver {
 						)
 					);
 					$this->set_result_from_affected_rows();
-					$rows += $this->results;
+					$rows += $this->last_result;
 				}
 			}
 
@@ -1276,7 +1280,7 @@ class WP_SQLite_Driver {
 				$this->execute_show_tables_statement( $node );
 				break;
 			case WP_MySQL_Lexer::VARIABLES_SYMBOL:
-				$this->results = true;
+				$this->last_result = true;
 				return;
 			default:
 				throw $this->not_supported_exception(
@@ -1909,8 +1913,8 @@ class WP_SQLite_Driver {
 				//        For compatibility with more complex use cases, it may
 				//        be better to register it as a custom SQLite function.
 				$found_rows = $this->last_sql_calc_found_rows;
-				if ( null === $found_rows && is_array( $this->results ) ) {
-					$found_rows = count( $this->results );
+				if ( null === $found_rows && is_array( $this->last_result ) ) {
+					$found_rows = count( $this->last_result );
 				}
 				return sprintf( "(SELECT %d) AS 'FOUND_ROWS()'", $found_rows );
 			default:
@@ -2332,11 +2336,11 @@ class WP_SQLite_Driver {
 	 * Method to clear previous data.
 	 */
 	private function flush() {
-		$this->mysql_query    = '';
-		$this->sqlite_queries = array();
-		$this->results        = null;
-		$this->return_value   = null;
-		$this->error_messages = array();
+		$this->last_mysql_query    = '';
+		$this->last_sqlite_queries = array();
+		$this->last_result         = null;
+		$this->last_return_value   = null;
+		$this->error_messages      = array();
 	}
 
 	/**
@@ -2345,8 +2349,8 @@ class WP_SQLite_Driver {
 	 * @param array $data The data to set.
 	 */
 	private function set_results_from_fetched_data( $data ) {
-		$this->results      = $data;
-		$this->return_value = $this->results;
+		$this->last_result       = $data;
+		$this->last_return_value = $this->last_result;
 	}
 
 	/**
@@ -2366,8 +2370,8 @@ class WP_SQLite_Driver {
 		} else {
 			$affected_rows = $override;
 		}
-		$this->results      = $affected_rows;
-		$this->return_value = $affected_rows;
+		$this->last_result       = $affected_rows;
+		$this->last_return_value = $affected_rows;
 	}
 
 	/**
@@ -2380,7 +2384,7 @@ class WP_SQLite_Driver {
 	private function handle_error( Exception $err ) {
 		$message = $err->getMessage();
 		$this->set_error( __LINE__, __FUNCTION__, $message );
-		$this->return_value = false;
+		$this->last_return_value = false;
 		return false;
 	}
 
