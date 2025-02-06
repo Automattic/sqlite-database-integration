@@ -494,7 +494,8 @@ class WP_SQLite_Driver {
 			// Handle transaction commands.
 			$child = $ast->get_first_child();
 			if ( $child instanceof WP_Parser_Node && 'beginWork' === $child->rule_name ) {
-				return $this->begin_transaction();
+				$this->begin_transaction();
+				return true;
 			}
 
 			if ( $child instanceof WP_Parser_Node && 'simpleStatement' === $child->rule_name ) {
@@ -507,25 +508,29 @@ class WP_SQLite_Driver {
 						WP_MySQL_Lexer::START_SYMBOL === $token1->id
 						&& WP_MySQL_Lexer::TRANSACTION_SYMBOL === $token2->id
 					) {
-						return $this->begin_transaction();
+						$this->begin_transaction();
+						return true;
 					}
 
 					if (
 						WP_MySQL_Lexer::BEGIN_SYMBOL === $token1->id
 					) {
-						return $this->begin_transaction();
+						$this->begin_transaction();
+						return true;
 					}
 
 					if (
 						WP_MySQL_Lexer::COMMIT_SYMBOL === $token1->id
 					) {
-						return $this->commit();
+						$this->commit();
+						return true;
 					}
 
 					if (
 						WP_MySQL_Lexer::ROLLBACK_SYMBOL === $token1->id
 					) {
-						return $this->rollback();
+						$this->rollback();
+						return true;
 					}
 				}
 			}
