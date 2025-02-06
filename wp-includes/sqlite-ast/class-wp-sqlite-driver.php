@@ -349,10 +349,6 @@ class WP_SQLite_Driver {
 			}
 			$path = $options['path'];
 
-			if ( ':memory:' !== $path && ! is_file( $path ) ) {
-				$this->prepare_directory();
-			}
-
 			try {
 				$this->pdo = new PDO( 'sqlite:' . $path );
 			} catch ( PDOException $e ) {
@@ -2319,51 +2315,6 @@ class WP_SQLite_Driver {
 
 	private function quote_mysql_identifier( string $unquoted_identifier ): string {
 		return '`' . str_replace( '`', '``', $unquoted_identifier ) . '`';
-	}
-
-	/**
-	 * This method makes database directory and .htaccess file.
-	 *
-	 * It is executed only once when the installation begins.
-	 */
-	private function prepare_directory() {
-		$u = umask( 0000 );
-		if ( ! is_dir( FQDBDIR ) ) {
-			if ( ! @mkdir( FQDBDIR, 0704, true ) ) {
-				umask( $u );
-				wp_die( 'Unable to create the required directory! Please check your server settings.', 'Error!' );
-			}
-		}
-		if ( ! is_writable( FQDBDIR ) ) {
-			umask( $u );
-			$message = 'Unable to create a file in the directory! Please check your server settings.';
-			wp_die( $message, 'Error!' );
-		}
-		if ( ! is_file( FQDBDIR . '.htaccess' ) ) {
-			$fh = fopen( FQDBDIR . '.htaccess', 'w' );
-			if ( ! $fh ) {
-				umask( $u );
-				echo 'Unable to create a file in the directory! Please check your server settings.';
-
-				return false;
-			}
-			fwrite( $fh, 'DENY FROM ALL' );
-			fclose( $fh );
-		}
-		if ( ! is_file( FQDBDIR . 'index.php' ) ) {
-			$fh = fopen( FQDBDIR . 'index.php', 'w' );
-			if ( ! $fh ) {
-				umask( $u );
-				echo 'Unable to create a file in the directory! Please check your server settings.';
-
-				return false;
-			}
-			fwrite( $fh, '<?php // Silence is gold. ?>' );
-			fclose( $fh );
-		}
-		umask( $u );
-
-		return true;
 	}
 
 	/**
