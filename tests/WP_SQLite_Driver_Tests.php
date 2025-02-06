@@ -58,20 +58,9 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		);
 	}
 
-	private function assertQuery( $sql, $error_substring = null ) {
+	private function assertQuery( $sql ) {
 		$retval = $this->engine->query( $sql );
-		if ( null === $error_substring ) {
-			$this->assertEquals(
-				'',
-				$this->engine->get_error_message()
-			);
-			$this->assertNotFalse(
-				$retval
-			);
-		} else {
-			$this->assertStringContainsStringIgnoringCase( $error_substring, $this->engine->get_error_message() );
-		}
-
+		$this->assertNotFalse( $retval );
 		return $retval;
 	}
 
@@ -854,7 +843,6 @@ class WP_SQLite_Driver_Tests extends TestCase {
 				KEY user_email (user_email)
 			) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci"
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		$this->assertQuery( 'DESCRIBE wptests_users;' );
@@ -953,7 +941,6 @@ class WP_SQLite_Driver_Tests extends TestCase {
 				PRIMARY KEY  (ID)
 			) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci'
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 	}
 
@@ -964,7 +951,6 @@ class WP_SQLite_Driver_Tests extends TestCase {
 				UNIQUE KEY (ID)
 			)'
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 	}
 
@@ -978,7 +964,6 @@ class WP_SQLite_Driver_Tests extends TestCase {
 				PRIMARY KEY  (ID)
 			)"
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		$this->assertQuery( 'DESCRIBE wptests_users;' );
@@ -1031,7 +1016,6 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		$this->assertNull( $result );
 
 		$result = $this->assertQuery( 'ALTER TABLE _tmp_table ADD COLUMN `column` int;' );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		$this->assertQuery( 'DESCRIBE _tmp_table;' );
@@ -1059,7 +1043,6 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		);
 
 		$result = $this->assertQuery( 'ALTER TABLE _tmp_table ADD `column2` int;' );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		$this->assertQuery( 'DESCRIBE _tmp_table;' );
@@ -1095,7 +1078,6 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		);
 
 		$result = $this->assertQuery( 'ALTER TABLE _tmp_table DROP COLUMN `column`;' );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		$this->assertQuery( 'DESCRIBE _tmp_table;' );
@@ -1123,7 +1105,6 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		);
 
 		$result = $this->assertQuery( 'ALTER TABLE _tmp_table DROP `column2`;' );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		$this->assertQuery( 'DESCRIBE _tmp_table;' );
@@ -1151,7 +1132,6 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		);
 
 		$result = $this->assertQuery( "ALTER TABLE _tmp_table ADD COLUMN `column` VARCHAR(20) NOT NULL DEFAULT 'foo';" );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		$this->assertQuery( 'DESCRIBE _tmp_table;' );
@@ -1732,7 +1712,6 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		);
 
 		$result = $this->assertQuery( 'ALTER TABLE _tmp_table ADD INDEX name (name);' );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		$this->assertQuery( 'SHOW INDEX FROM _tmp_table;' );
@@ -1769,7 +1748,6 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		);
 
 		$result = $this->assertQuery( 'ALTER TABLE _tmp_table ADD UNIQUE INDEX name (name(20));' );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		$this->assertQuery( 'SHOW INDEX FROM _tmp_table;' );
@@ -1806,7 +1784,6 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		);
 
 		$result = $this->assertQuery( 'ALTER TABLE _tmp_table ADD FULLTEXT INDEX name (name);' );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		$this->assertQuery( 'SHOW INDEX FROM _tmp_table;' );
@@ -1850,16 +1827,25 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		$this->assertEquals( 1, $result );
 
 		// Primary key violation:
-		$result = $this->engine->query( "INSERT INTO _tmp_table (ID, name, lastname) VALUES (1, 'Mike', 'Pearseed');" );
-		$this->assertEquals( false, $result );
+		$error = '';
+		try {
+			$this->engine->query( "INSERT INTO _tmp_table (ID, name, lastname) VALUES (1, 'Mike', 'Pearseed')" );
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
+		$this->assertStringContainsString( 'UNIQUE constraint failed: _tmp_table.ID', $error );
 
 		// Unique constraint violation:
-		$result = $this->engine->query( "INSERT INTO _tmp_table (ID, name, lastname) VALUES (2, 'Johnny', 'Appleseed');" );
-		$this->assertEquals( false, $result );
+		$error = '';
+		try {
+			$this->engine->query( "INSERT INTO _tmp_table (ID, name, lastname) VALUES (2, 'Johnny', 'Appleseed')" );
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
+		$this->assertStringContainsString( 'UNIQUE constraint failed: _tmp_table.name', $error );
 
 		// Rename the "name" field to "firstname":
 		$result = $this->engine->query( "ALTER TABLE _tmp_table CHANGE column name firstname varchar(50) NOT NULL default 'mark';" );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		// Confirm the original data is still there:
@@ -1870,12 +1856,22 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		$this->assertEquals( 'Appleseed', $result[0]->lastname );
 
 		// Confirm the primary key is intact:
-		$result = $this->engine->query( "INSERT INTO _tmp_table (ID, firstname, lastname) VALUES (1, 'Mike', 'Pearseed');" );
-		$this->assertEquals( false, $result );
+		$error = '';
+		try {
+			$this->engine->query( "INSERT INTO _tmp_table (ID, firstname, lastname) VALUES (1, 'Mike', 'Pearseed')" );
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
+		$this->assertStringContainsString( 'UNIQUE constraint failed: _tmp_table.ID', $error );
 
 		// Confirm the unique key is intact:
-		$result = $this->engine->query( "INSERT INTO _tmp_table (ID, firstname, lastname) VALUES (2, 'Johnny', 'Appleseed');" );
-		$this->assertEquals( false, $result );
+		$error = '';
+		try {
+			$this->engine->query( "INSERT INTO _tmp_table (ID, firstname, lastname) VALUES (2, 'Johnny', 'Appleseed')" );
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
+		$this->assertStringContainsString( 'UNIQUE constraint failed: _tmp_table.firstname', $error );
 
 		// Confirm the autoincrement still works:
 		$result = $this->engine->query( "INSERT INTO _tmp_table (firstname, lastname) VALUES ('John', 'Doe');" );
@@ -1901,16 +1897,25 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		$this->assertEquals( 1, $result );
 
 		// Primary key violation:
-		$result = $this->engine->query( "INSERT INTO _tmp_table (ID, name, lastname) VALUES (1, 'Mike', 'Pearseed');" );
-		$this->assertEquals( false, $result );
+		$error = '';
+		try {
+			$this->engine->query( "INSERT INTO _tmp_table (ID, name, lastname) VALUES (1, 'Mike', 'Pearseed')" );
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
+		$this->assertStringContainsString( 'UNIQUE constraint failed: _tmp_table.ID', $error );
 
 		// Unique constraint violation:
-		$result = $this->engine->query( "INSERT INTO _tmp_table (ID, name, lastname) VALUES (2, 'Johnny', 'Appleseed');" );
-		$this->assertEquals( false, $result );
+		$error = '';
+		try {
+			$this->engine->query( "INSERT INTO _tmp_table (ID, name, lastname) VALUES (2, 'Johnny', 'Appleseed')" );
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
+		$this->assertStringContainsString( 'UNIQUE constraint failed: _tmp_table.name', $error );
 
 		// Rename the "name" field to "firstname":
 		$result = $this->engine->query( "ALTER TABLE _tmp_table CHANGE name firstname varchar(50) NOT NULL default 'mark';" );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		// Confirm the original data is still there:
@@ -1921,12 +1926,22 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		$this->assertEquals( 'Appleseed', $result[0]->lastname );
 
 		// Confirm the primary key is intact:
-		$result = $this->engine->query( "INSERT INTO _tmp_table (ID, firstname, lastname) VALUES (1, 'Mike', 'Pearseed');" );
-		$this->assertEquals( false, $result );
+		$error = '';
+		try {
+			$this->engine->query( "INSERT INTO _tmp_table (ID, firstname, lastname) VALUES (1, 'Mike', 'Pearseed')" );
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
+		$this->assertStringContainsString( 'UNIQUE constraint failed: _tmp_table.ID', $error );
 
 		// Confirm the unique key is intact:
-		$result = $this->engine->query( "INSERT INTO _tmp_table (ID, firstname, lastname) VALUES (2, 'Johnny', 'Appleseed');" );
-		$this->assertEquals( false, $result );
+		$error = '';
+		try {
+			$this->engine->query( "INSERT INTO _tmp_table (ID, firstname, lastname) VALUES (2, 'Johnny', 'Appleseed')" );
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
+		$this->assertStringContainsString( 'UNIQUE constraint failed: _tmp_table.firstname', $error );
 
 		// Confirm the autoincrement still works:
 		$result = $this->engine->query( "INSERT INTO _tmp_table (firstname, lastname) VALUES ('John', 'Doe');" );
@@ -1942,17 +1957,14 @@ class WP_SQLite_Driver_Tests extends TestCase {
 				`foo-bar` varchar(255) DEFAULT NULL
 			)'
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		$result = $this->assertQuery(
 			'ALTER TABLE wptests_dbdelta_test2 CHANGE COLUMN `foo-bar` `foo-bar` text DEFAULT NULL'
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		$result = $this->assertQuery( 'DESCRIBE wptests_dbdelta_test2;' );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNotFalse( $result );
 		$this->assertEquals(
 			array(
@@ -1979,21 +1991,18 @@ class WP_SQLite_Driver_Tests extends TestCase {
 				PRIMARY KEY (ID, name)
 			);"
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		// Add a unique index
 		$result = $this->assertQuery(
 			'ALTER TABLE _tmp_table ADD UNIQUE INDEX "test_unique_composite" (name, lastname);'
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		// Add a regular index
 		$result = $this->assertQuery(
 			'ALTER TABLE _tmp_table ADD INDEX "test_regular" (lastname);'
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		// Confirm the table is well-behaved so far:
@@ -2012,12 +2021,22 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		$this->assertEquals( 4, $result );
 
 		// Primary key violation:
-		$result = $this->engine->query( "INSERT INTO _tmp_table (ID, name) VALUES (1, 'Johnny');" );
-		$this->assertEquals( false, $result );
+		$error = '';
+		try {
+			$this->engine->query( "INSERT INTO _tmp_table (ID, name) VALUES (1, 'Johnny')" );
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
+		$this->assertStringContainsString( 'UNIQUE constraint failed: _tmp_table.ID, _tmp_table.name', $error );
 
 		// Unique constraint violation:
-		$result = $this->engine->query( "INSERT INTO _tmp_table (ID, name, lastname) VALUES (5, 'Kate', 'Bar');" );
-		$this->assertEquals( false, $result );
+		$error = '';
+		try {
+			$this->engine->query( "INSERT INTO _tmp_table (ID, name, lastname) VALUES (5, 'Kate', 'Bar');" );
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
+		$this->assertStringContainsString( 'UNIQUE constraint failed: _tmp_table.name, _tmp_table.lastname', $error );
 
 		// No constraint violation:
 		$result = $this->engine->query( "INSERT INTO _tmp_table (ID, name, lastname) VALUES (5, 'Joanna', 'Bar');" );
@@ -2025,11 +2044,9 @@ class WP_SQLite_Driver_Tests extends TestCase {
 
 		// Now – let's change a few columns:
 		$result = $this->engine->query( 'ALTER TABLE _tmp_table CHANGE COLUMN name firstname varchar(20)' );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		$result = $this->engine->query( 'ALTER TABLE _tmp_table CHANGE COLUMN date_as_string datetime datetime NOT NULL' );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		// Finally, let's confirm our data is intact and the table is still well-behaved:
@@ -2041,16 +2058,25 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		$this->assertEquals( '2002-01-01 12:53:13', $result[0]->datetime );
 
 		// Primary key violation:
-		$result = $this->engine->query( "INSERT INTO _tmp_table (ID, firstname, datetime) VALUES (1, 'Johnny', '2010-01-01 12:53:13');" );
-		$this->assertEquals( false, $result );
+		$error = '';
+		try {
+			$this->engine->query( "INSERT INTO _tmp_table (ID, firstname, datetime) VALUES (1, 'Johnny', '2010-01-01 12:53:13');" );
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
+		$this->assertStringContainsString( 'UNIQUE constraint failed: _tmp_table.ID, _tmp_table.firstname', $error );
 
 		// Unique constraint violation:
-		$result = $this->engine->query( "INSERT INTO _tmp_table (ID, firstname, lastname, datetime) VALUES (6, 'Kate', 'Bar', '2010-01-01 12:53:13');" );
-		$this->assertEquals( false, $result );
+		$error = '';
+		try {
+			$this->engine->query( "INSERT INTO _tmp_table (ID, firstname, lastname, datetime) VALUES (6, 'Kate', 'Bar', '2010-01-01 12:53:13');" );
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
+		$this->assertStringContainsString( 'UNIQUE constraint failed: _tmp_table.firstname, _tmp_table.lastname', $error );
 
 		// No constraint violation:
 		$result = $this->engine->query( "INSERT INTO _tmp_table (ID, firstname, lastname, datetime) VALUES (6, 'Sophie', 'Bar', '2010-01-01 12:53:13');" );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertEquals( 1, $result );
 	}
 
@@ -2074,12 +2100,15 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		$this->assertEquals( 1, $result1[0]->num );
 
 		// Unique keys should be case-insensitive:
-		$result2 = $this->assertQuery(
-			"INSERT INTO _tmp_table (name, lastname) VALUES ('FIRST', 'LAST' );",
-			'UNIQUE constraint failed'
-		);
-
-		$this->assertEquals( false, $result2 );
+		$error = '';
+		try {
+			$this->assertQuery(
+				"INSERT INTO _tmp_table (name, lastname) VALUES ('FIRST', 'LAST' )"
+			);
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
+		$this->assertStringContainsString( 'UNIQUE constraint failed', $error );
 
 		$result1 = $this->engine->query( 'SELECT COUNT(*) num FROM _tmp_table;' );
 		$this->assertEquals( 1, $result1[0]->num );
@@ -2118,7 +2147,6 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		);
 
 		$result1 = $this->assertQuery( "INSERT INTO _tmp_table (name) VALUES ('first');" );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertEquals( 1, $result1 );
 
 		$result2 = $this->assertQuery( "INSERT INTO _tmp_table (name) VALUES ('FIRST') ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);" );
@@ -2159,7 +2187,6 @@ class WP_SQLite_Driver_Tests extends TestCase {
 			"INSERT INTO _tmp_table (name) VALUES ('first');"
 		);
 		$this->assertQuery( "SELECT name FROM _tmp_table WHERE name = 'FIRST';" );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertCount( 1, $this->engine->get_query_results() );
 		$this->assertEquals(
 			array(
@@ -2299,14 +2326,20 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		// Behind the scenes, this single MySQL query is split
 		// into multiple SQLite queries – some of them will
 		// succeed, some will fail.
-		$success = $this->engine->query(
+		$error = '';
+		try {
+			$this->engine->query(
+				'
+				ALTER TABLE _options
+				ADD COLUMN test varchar(20),
+				ADD COLUMN test varchar(20)
 			'
-		ALTER TABLE _options
-			ADD COLUMN test varchar(20),
-			ADD COLUMN test varchar(20)
-		'
-		);
-		$this->assertFalse( $success );
+			);
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
+		$this->assertStringContainsString( 'duplicate column name: test', $error );
+
 		// Commit the transaction.
 		$this->assertQuery( 'COMMIT' );
 
@@ -2525,11 +2558,11 @@ class WP_SQLite_Driver_Tests extends TestCase {
 				KEY term_taxonomy_id (term_taxonomy_id)
 			   ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci'
 		);
-		$result1 = $this->engine->query( 'INSERT INTO wptests_term_relationships VALUES (1,2,1),(1,3,2);' );
-		$this->assertEquals( 2, $result1 );
+		$result = $this->engine->query( 'INSERT INTO wptests_term_relationships VALUES (1,2,1),(1,3,2);' );
+		$this->assertEquals( 2, $result );
 
-		$result2 = $this->engine->query( 'INSERT INTO wptests_term_relationships VALUES (1,2,2),(1,3,1);' );
-		$this->assertEquals( false, $result2 );
+		$this->expectExceptionMessage( 'UNIQUE constraint failed: wptests_term_relationships.object_id, wptests_term_relationships.term_taxonomy_id' );
+		$this->engine->query( 'INSERT INTO wptests_term_relationships VALUES (1,2,2),(1,3,1);' );
 	}
 
 	public function testDescribeAccurate() {
@@ -2544,11 +2577,9 @@ class WP_SQLite_Driver_Tests extends TestCase {
 				FULLTEXT KEY term_name (term_name)
 			   ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci'
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNotFalse( $result );
 
 		$result = $this->assertQuery( 'DESCRIBE wptests_term_relationships;' );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNotFalse( $result );
 
 		$fields = $this->engine->get_query_results();
@@ -2590,15 +2621,12 @@ class WP_SQLite_Driver_Tests extends TestCase {
 				object_id bigint(20) unsigned NOT NULL default 0
 			)'
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNotFalse( $result );
 
 		$result = $this->assertQuery( "ALTER TABLE `_test` ADD COLUMN object_name varchar(255) NOT NULL DEFAULT 'adb';" );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNotFalse( $result );
 
 		$result = $this->assertQuery( 'DESCRIBE _test;' );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNotFalse( $result );
 		$fields = $this->engine->get_query_results();
 
@@ -2651,7 +2679,6 @@ class WP_SQLite_Driver_Tests extends TestCase {
 				KEY compound_key (object_id,term_taxonomy_id)
 			) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci'
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNotFalse( $result );
 
 		$result = $this->assertQuery( 'SHOW INDEX FROM wptests_term_relationships;' );
@@ -2818,15 +2845,12 @@ class WP_SQLite_Driver_Tests extends TestCase {
 				KEY term_taxonomy_id (term_taxonomy_id)
 			   ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci'
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNotFalse( $result );
 
 		$result1 = $this->assertQuery( 'INSERT INTO wptests_term_relationships VALUES (1,2,1),(1,3,2);' );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertEquals( 2, $result1 );
 
 		$result2 = $this->assertQuery( 'INSERT INTO wptests_term_relationships VALUES (1,2,2),(1,3,1) ON DUPLICATE KEY UPDATE term_order = VALUES(term_order);' );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertEquals( 2, $result2 );
 
 		$this->assertQuery( 'SELECT COUNT(*) as cnt FROM wptests_term_relationships' );
@@ -2865,19 +2889,16 @@ class WP_SQLite_Driver_Tests extends TestCase {
 				user_login TEXT NOT NULL default ''
 			);"
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNotFalse( $result );
 
 		$result = $this->assertQuery(
 			"INSERT INTO wptests_dummy (user_login) VALUES ('test1');"
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertEquals( 1, $result );
 
 		$result = $this->assertQuery(
 			"INSERT INTO wptests_dummy (user_login) VALUES ('test2');"
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertEquals( 1, $result );
 
 		$result = $this->assertQuery(
@@ -2885,13 +2906,11 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		);
 		$this->assertNotFalse( $result );
 		$this->assertCount( 1, $result );
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertEquals( 'test1', $result[0]->user_login );
 
 		$result = $this->assertQuery(
 			'SELECT FOUND_ROWS()'
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertEquals(
 			array(
 				(object) array(
@@ -3053,9 +3072,10 @@ QUERY
 		$this->assertQuery(
 			'CREATE TABLE IF NOT EXISTS t (ID INTEGER, name TEXT)'
 		);
+
+		$this->expectExceptionMessage( 'table `t` already exists' );
 		$this->assertQuery(
-			'CREATE TABLE t (ID INTEGER, name TEXT)',
-			'table `t` already exists'
+			'CREATE TABLE t (ID INTEGER, name TEXT)'
 		);
 	}
 
@@ -3095,7 +3115,6 @@ QUERY
 				ADD INDEX test_index2(option_name(140),option_value(51))
 			'
 		);
-		$this->assertEquals( '', $this->engine->get_error_message() );
 		$this->assertNull( $result );
 
 		$result = $this->assertQuery(
@@ -3361,15 +3380,25 @@ QUERY
 		);
 
 		// This should fail because of the UNIQUE constraints.
-		$this->assertQuery(
-			"UPDATE _tmp_table SET unique_name = 'unique-default-value' WHERE ID = 2",
-			'UNIQUE constraint failed: _tmp_table.unique_name'
-		);
+		$error = '';
+		try {
+			$this->assertQuery(
+				"UPDATE _tmp_table SET unique_name = 'unique-default-value' WHERE ID = 2"
+			);
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
+		$this->assertStringContainsString( 'UNIQUE constraint failed: _tmp_table.unique_name', $error );
 
-		$this->assertQuery(
-			"UPDATE _tmp_table SET inline_unique_name = 'inline-unique-default-value' WHERE ID = 2",
-			'UNIQUE constraint failed: _tmp_table.inline_unique_name'
-		);
+		$error = '';
+		try {
+			$this->assertQuery(
+				"UPDATE _tmp_table SET inline_unique_name = 'inline-unique-default-value' WHERE ID = 2"
+			);
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
+		$this->assertStringContainsString( 'UNIQUE constraint failed: _tmp_table.inline_unique_name', $error );
 
 		// Updating "name" to the same value as the first row should pass.
 		$this->assertQuery(
@@ -3388,10 +3417,15 @@ QUERY
 		);
 
 		// Updating also "unique_name" should fail on the compound UNIQUE key.
-		$this->assertQuery(
-			"UPDATE _tmp_table SET inline_unique_name = 'inline-unique-default-value' WHERE ID = 2",
-			'UNIQUE constraint failed: _tmp_table.inline_unique_name'
-		);
+		$error = '';
+		try {
+			$this->assertQuery(
+				"UPDATE _tmp_table SET inline_unique_name = 'inline-unique-default-value' WHERE ID = 2"
+			);
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
+		$this->assertStringContainsString( 'UNIQUE constraint failed: _tmp_table.inline_unique_name', $error );
 
 		$result = $this->assertQuery( 'SELECT * FROM _tmp_table WHERE ID = 2' );
 		$this->assertEquals(
@@ -3684,10 +3718,8 @@ QUERY
 		 * See:
 		 *   https://www.sqlite.org/quirks.html#double_quoted_string_literals_are_accepted
 		 */
-		$this->assertQuery(
-			'SELECT non_existent_column FROM t LIMIT 0',
-			'no such column: non_existent_column'
-		);
+		$this->expectExceptionMessage( 'no such column: non_existent_column' );
+		$this->assertQuery( 'SELECT non_existent_column FROM t LIMIT 0' );
 	}
 
 	public function testUnion(): void {

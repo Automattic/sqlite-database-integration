@@ -245,13 +245,6 @@ class WP_SQLite_Driver {
 	private $pdo;
 
 	/**
-	 * Whether a debug mode is enabled.
-	 *
-	 * @var bool
-	 */
-	private $debug;
-
-	/**
 	 * @var WP_SQLite_Information_Schema_Builder
 	 */
 	private $information_schema_builder;
@@ -292,20 +285,6 @@ class WP_SQLite_Driver {
 	private $last_sql_calc_found_rows = null;
 
 	/**
-	 * Error encountered during the last query.
-	 *
-	 * @var array
-	 */
-	private $errors;
-
-	/**
-	 * Error messages produced by the last query.
-	 *
-	 * @var array
-	 */
-	private $error_messages = array();
-
-	/**
 	 * Transaction nesting level of the executed SQLite queries.
 	 *
 	 * @var int
@@ -334,7 +313,6 @@ class WP_SQLite_Driver {
 	 *                                            Must be set when PDO instance is not provided.
 	 *     @type PDO|null    $connection          Optional. PDO instance with SQLite connection.
 	 *                                            If not provided, a new PDO instance will be created.
-	 *     @type bool        $debug               Optional. Enable debug mode.
 	 *     @type int|null    $timeout             Optional. SQLite timeout in seconds.
 	 *                                            The time to wait for a writable lock.
 	 *     @type string|null $sqlite_journal_mode Optional. SQLite journal mode.
@@ -343,7 +321,7 @@ class WP_SQLite_Driver {
 	public function __construct( array $options ) {
 		// Database name.
 		if ( ! isset( $options['database'] ) || ! is_string( $options['database'] ) ) {
-			throw new WP_SQLite_Driver_Exception( 'Option "database" is required.' );
+			throw $this->new_driver_exception( 'Option "database" is required.' );
 		}
 		$this->db_name = $options['database'];
 
@@ -352,13 +330,10 @@ class WP_SQLite_Driver {
 			$this->pdo = $options['connection'];
 		}
 
-		// Debug mode.
-		$this->debug = isset( $options['debug'] ) && true === $options['debug'];
-
 		// Create a PDO connection if it is not provided.
 		if ( ! $this->pdo ) {
 			if ( ! isset( $options['path'] ) || ! is_string( $options['path'] ) ) {
-				throw new WP_SQLite_Driver_Exception(
+				throw $this->new_driver_exception(
 					'Option "path" is required when "connection" is not provided.'
 				);
 			}
@@ -367,13 +342,8 @@ class WP_SQLite_Driver {
 			try {
 				$this->pdo = new PDO( 'sqlite:' . $path );
 			} catch ( PDOException $e ) {
-				$this->error_messages[] = sprintf(
-					'<p>%s</p><p>%s</p><p>%s</p>',
-					'Database initialization error!',
-					'Code: ' . $e->getCode(),
-					'Error Message: ' . $e->getMessage()
-				);
-				return;
+				$code = $e->getCode();
+				throw $this->new_driver_exception( $e->getMessage(), is_int( $code ) ? $code : 0, $e );
 			}
 		}
 
@@ -499,7 +469,7 @@ class WP_SQLite_Driver {
 			$ast    = $parser->parse();
 
 			if ( null === $ast ) {
-				throw new WP_SQLite_Driver_Exception( 'Failed to parse the MySQL query.' );
+				throw $this->new_driver_exception( 'Failed to parse the MySQL query.' );
 			}
 
 			// Handle transaction commands.
@@ -557,10 +527,8 @@ class WP_SQLite_Driver {
 			} catch ( Throwable $rollback_exception ) {
 				// Ignore rollback errors.
 			}
-			if ( true === $this->debug ) {
-				throw $e;
-			}
-			return $this->handle_error( $e );
+			$code = $e->getCode();
+			throw $this->new_driver_exception( $e->getMessage(), is_int( $code ) ? $code : 0, $e );
 		}
 	}
 
@@ -604,53 +572,6 @@ class WP_SQLite_Driver {
 		$stmt = $this->pdo->prepare( $sql );
 		$stmt->execute( $params );
 		return $stmt;
-	}
-
-	/**
-	 * Method to return error messages.
-	 *
-	 * @throws Exception If error is found.
-	 *
-	 * @return string
-	 */
-	public function get_error_message() {
-		if ( count( $this->error_messages ) === 0 ) {
-			$this->error_messages = array();
-			return '';
-		}
-
-		$output  = '<div style="clear:both">&nbsp;</div>' . PHP_EOL;
-		$output .= '<div class="queries" style="clear:both;margin-bottom:2px;border:red dotted thin;">' . PHP_EOL;
-		$output .= '<p>MySQL query:</p>' . PHP_EOL;
-		$output .= '<p>' . $this->last_mysql_query . '</p>' . PHP_EOL;
-		$output .= '<p>Queries made or created this session were:</p>' . PHP_EOL;
-		$output .= '<ol>' . PHP_EOL;
-		foreach ( $this->last_sqlite_queries as $q ) {
-			$message = "Executing: {$q['sql']} | " . ( $q['params'] ? 'parameters: ' . implode( ', ', $q['params'] ) : '(no parameters)' );
-
-			$output .= '<li>' . htmlspecialchars( $message ) . '</li>' . PHP_EOL;
-		}
-		$output .= '</ol>' . PHP_EOL;
-		$output .= '</div>' . PHP_EOL;
-		foreach ( $this->error_messages as $num => $m ) {
-			$output .= '<div style="clear:both;margin-bottom:2px;border:red dotted thin;" class="error_message" style="border-bottom:dotted blue thin;">' . PHP_EOL;
-			$output .= sprintf(
-				'Error occurred at line %1$d in Function %2$s. Error message was: %3$s.',
-				(int) $this->errors[ $num ]['line'],
-				'<code>' . htmlspecialchars( $this->errors[ $num ]['function'] ) . '</code>',
-				$m
-			) . PHP_EOL;
-			$output .= '</div>' . PHP_EOL;
-		}
-
-		try {
-			throw new Exception();
-		} catch ( Exception $e ) {
-			$output .= '<p>Backtrace:</p>' . PHP_EOL;
-			$output .= '<pre>' . $e->getTraceAsString() . '</pre>' . PHP_EOL;
-		}
-
-		return $output;
 	}
 
 	/**
@@ -706,14 +627,14 @@ class WP_SQLite_Driver {
 	 */
 	private function execute_mysql_query( WP_Parser_Node $ast ) {
 		if ( 'query' !== $ast->rule_name ) {
-			throw new WP_SQLite_Driver_Exception(
+			throw $this->new_driver_exception(
 				sprintf( 'Expected "query" node, got: "%s"', $ast->rule_name )
 			);
 		}
 
 		$children = $ast->get_child_nodes();
 		if ( count( $children ) !== 1 ) {
-			throw new WP_SQLite_Driver_Exception(
+			throw $this->new_driver_exception(
 				sprintf( 'Expected 1 child, got: %d', count( $children ) )
 			);
 		}
@@ -740,7 +661,7 @@ class WP_SQLite_Driver {
 						$this->execute_create_table_statement( $ast );
 						break;
 					default:
-						throw $this->not_supported_exception(
+						throw $this->new_not_supported_exception(
 							sprintf(
 								'statement type: "%s" > "%s"',
 								$ast->rule_name,
@@ -756,7 +677,7 @@ class WP_SQLite_Driver {
 						$this->execute_alter_table_statement( $ast );
 						break;
 					default:
-						throw $this->not_supported_exception(
+						throw $this->new_not_supported_exception(
 							sprintf(
 								'statement type: "%s" > "%s"',
 								$ast->rule_name,
@@ -794,7 +715,7 @@ class WP_SQLite_Driver {
 						$this->execute_describe_statement( $subtree );
 						break;
 					default:
-						throw $this->not_supported_exception(
+						throw $this->new_not_supported_exception(
 							sprintf(
 								'statement type: "%s" > "%s"',
 								$ast->rule_name,
@@ -804,7 +725,7 @@ class WP_SQLite_Driver {
 				}
 				break;
 			default:
-				throw $this->not_supported_exception(
+				throw $this->new_not_supported_exception(
 					sprintf( 'statement type: "%s"', $ast->rule_name )
 				);
 		}
@@ -1283,7 +1204,7 @@ class WP_SQLite_Driver {
 				$this->last_result = true;
 				return;
 			default:
-				throw $this->not_supported_exception(
+				throw $this->new_not_supported_exception(
 					sprintf(
 						'statement type: "%s" > "%s"',
 						$node->rule_name,
@@ -1467,7 +1388,7 @@ class WP_SQLite_Driver {
 		}
 
 		if ( ! $ast instanceof WP_Parser_Node ) {
-			throw new WP_SQLite_Driver_Exception(
+			throw $this->new_driver_exception(
 				sprintf(
 					'Expected a WP_Parser_Node or WP_MySQL_Token instance, got: %s',
 					gettype( $ast )
@@ -1519,7 +1440,7 @@ class WP_SQLite_Driver {
 				}
 
 				if ( null === $child ) {
-					throw $this->invalid_input_exception();
+					throw $this->new_invalid_input_exception();
 				}
 
 				$type = self::DATA_TYPE_MAP[ $child->id ] ?? null;
@@ -1533,7 +1454,7 @@ class WP_SQLite_Driver {
 				}
 
 				// @TODO: Handle SET and JSON.
-				throw $this->not_supported_exception(
+				throw $this->new_not_supported_exception(
 					sprintf( 'data type: %s', $child->value )
 				);
 			case 'fromClause':
@@ -1866,7 +1787,7 @@ class WP_SQLite_Driver {
 
 				$format = strtr( $mysql_format, self::DATE_FORMAT_TO_STRFTIME_MAP );
 				if ( ! $format ) {
-					throw new WP_SQLite_Driver_Exception(
+					throw $this->new_driver_exception(
 						sprintf(
 							'Could not translate a DATE_FORMAT() format to STRFTIME format (%s)',
 							$mysql_format
@@ -1995,7 +1916,7 @@ class WP_SQLite_Driver {
 		)->fetch( PDO::FETCH_ASSOC );
 
 		if ( false === $table_info ) {
-			throw new WP_SQLite_Driver_Exception(
+			throw $this->new_driver_exception(
 				sprintf( 'Table "%s" not found in information schema', $table_name )
 			);
 		}
@@ -2340,7 +2261,6 @@ class WP_SQLite_Driver {
 		$this->last_sqlite_queries = array();
 		$this->last_result         = null;
 		$this->last_return_value   = null;
-		$this->error_messages      = array();
 	}
 
 	/**
@@ -2374,46 +2294,21 @@ class WP_SQLite_Driver {
 		$this->last_return_value = $affected_rows;
 	}
 
-	/**
-	 * Error handler.
-	 *
-	 * @param Exception $err Exception object.
-	 *
-	 * @return bool Always false.
-	 */
-	private function handle_error( Exception $err ) {
-		$message = $err->getMessage();
-		$this->set_error( __LINE__, __FUNCTION__, $message );
-		$this->last_return_value = false;
-		return false;
+	private function new_driver_exception(
+		string $message,
+		int $code = 0,
+		Throwable $previous = null
+	): WP_SQLite_Driver_Exception {
+		return new WP_SQLite_Driver_Exception( $this, $message, $code, $previous );
 	}
 
-	/**
-	 * Method to format the error messages and put out to the file.
-	 *
-	 * When $wpdb::suppress_errors is set to true or $wpdb::show_errors is set to false,
-	 * the error messages are ignored.
-	 *
-	 * @param string $line          Where the error occurred.
-	 * @param string $function_name Indicate the function name where the error occurred.
-	 * @param string $message       The message.
-	 *
-	 * @return boolean|void
-	 */
-	private function set_error( $line, $function_name, $message ) {
-		$this->errors[]         = array(
-			'line'     => $line,
-			'function' => $function_name,
-		);
-		$this->error_messages[] = $message;
+	private function new_invalid_input_exception(): WP_SQLite_Driver_Exception {
+		throw new WP_SQLite_Driver_Exception( $this, 'MySQL query syntax error.' );
 	}
 
-	private function invalid_input_exception() {
-		throw new WP_SQLite_Driver_Exception( 'MySQL query syntax error.' );
-	}
-
-	private function not_supported_exception( string $cause ): Exception {
+	private function new_not_supported_exception( string $cause ): WP_SQLite_Driver_Exception {
 		return new WP_SQLite_Driver_Exception(
+			$this,
 			sprintf( 'MySQL query not supported. Cause: %s', $cause )
 		);
 	}

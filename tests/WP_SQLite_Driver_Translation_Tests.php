@@ -1249,12 +1249,16 @@ class WP_SQLite_Driver_Translation_Tests extends TestCase {
 	}
 
 	private function assertQuery( $expected, string $query ): void {
-		$this->driver->query( $query );
+		$error = null;
+		try {
+			$this->driver->query( $query );
+		} catch ( Throwable $e ) {
+			$error = $e->getMessage();
+		}
 
 		// Check for SQLite syntax errors.
 		// This ensures that invalid SQLite syntax will always fail, even if it
 		// was the expected result. It prevents us from using wrong assertions.
-		$error = $this->driver->get_error_message();
 		if ( $error && preg_match( '/(SQLSTATE\[HY000].+syntax error\.)/i', $error, $matches ) ) {
 			$this->fail(
 				sprintf( "SQLite syntax error: %s\nMySQL query: %s", $matches[1], $query )
