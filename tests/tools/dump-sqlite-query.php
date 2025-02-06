@@ -8,8 +8,9 @@ require_once __DIR__ . '/../../wp-includes/mysql/class-wp-mysql-lexer.php';
 require_once __DIR__ . '/../../wp-includes/mysql/class-wp-mysql-token.php';
 require_once __DIR__ . '/../../wp-includes/mysql/class-wp-mysql-parser.php';
 require_once __DIR__ . '/../../wp-includes/sqlite/class-wp-sqlite-pdo-user-defined-functions.php';
-require_once __DIR__ . '/../../wp-includes/sqlite-ast/class-wp-sqlite-information-schema-builder.php';
 require_once __DIR__ . '/../../wp-includes/sqlite-ast/class-wp-sqlite-driver.php';
+require_once __DIR__ . '/../../wp-includes/sqlite-ast/class-wp-sqlite-driver-exception.php';
+require_once __DIR__ . '/../../wp-includes/sqlite-ast/class-wp-sqlite-information-schema-builder.php';
 
 $driver = new WP_SQLite_Driver(
 	array(

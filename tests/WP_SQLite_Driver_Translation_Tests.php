@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../wp-includes/sqlite-ast/class-wp-sqlite-driver.php';
+require_once __DIR__ . '/../wp-includes/sqlite-ast/class-wp-sqlite-driver-exception.php';
 require_once __DIR__ . '/../wp-includes/sqlite-ast/class-wp-sqlite-information-schema-builder.php';
 
 use PHPUnit\Framework\TestCase;

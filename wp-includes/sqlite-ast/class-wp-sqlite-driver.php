@@ -331,7 +331,7 @@ class WP_SQLite_Driver {
 	public function __construct( array $options ) {
 		// Database name.
 		if ( ! isset( $options['database'] ) || ! is_string( $options['database'] ) ) {
-			throw new InvalidArgumentException( 'Option "database" is required.' );
+			throw new WP_SQLite_Driver_Exception( 'Option "database" is required.' );
 		}
 		$this->db_name = $options['database'];
 
@@ -343,7 +343,9 @@ class WP_SQLite_Driver {
 		// Create a PDO connection if it is not provided.
 		if ( ! $this->pdo ) {
 			if ( ! isset( $options['path'] ) || ! is_string( $options['path'] ) ) {
-				throw new InvalidArgumentException( 'Option "path" is required when "connection" is not provided.' );
+				throw new WP_SQLite_Driver_Exception(
+					'Option "path" is required when "connection" is not provided.'
+				);
 			}
 			$path = $options['path'];
 
@@ -486,7 +488,7 @@ class WP_SQLite_Driver {
 			$ast    = $parser->parse();
 
 			if ( null === $ast ) {
-				throw new Exception( 'Failed to parse the MySQL query.' );
+				throw new WP_SQLite_Driver_Exception( 'Failed to parse the MySQL query.' );
 			}
 
 			// Handle transaction commands.
@@ -580,17 +582,7 @@ class WP_SQLite_Driver {
 		);
 
 		$stmt = $this->pdo->prepare( $sql );
-		if ( false === $stmt || null === $stmt ) {
-			$info = $this->pdo->errorInfo();
-			throw new PDOException( implode( ' ', array( 'Error:', $info[0], $info[2], 'SQLite:', $sql ) ), $info[1] );
-		}
-
-		$is_success = $stmt->execute( $params );
-		if ( false === $is_success ) {
-			$info = $stmt->errorInfo();
-			throw new PDOException( implode( ' ', array( 'Error:', $info[0], $info[2], 'SQLite:', $sql ) ), $info[1] );
-		}
-
+		$stmt->execute( $params );
 		return $stmt;
 	}
 
@@ -694,12 +686,16 @@ class WP_SQLite_Driver {
 	 */
 	private function execute_mysql_query( WP_Parser_Node $ast ) {
 		if ( 'query' !== $ast->rule_name ) {
-			throw new Exception( sprintf( 'Expected "query" node, got: "%s"', $ast->rule_name ) );
+			throw new WP_SQLite_Driver_Exception(
+				sprintf( 'Expected "query" node, got: "%s"', $ast->rule_name )
+			);
 		}
 
 		$children = $ast->get_child_nodes();
 		if ( count( $children ) !== 1 ) {
-			throw new Exception( sprintf( 'Expected 1 child, got: %d', count( $children ) ) );
+			throw new WP_SQLite_Driver_Exception(
+				sprintf( 'Expected 1 child, got: %d', count( $children ) )
+			);
 		}
 
 		$ast = $children[0]->get_first_child_node();
@@ -724,9 +720,9 @@ class WP_SQLite_Driver {
 						$this->execute_create_table_statement( $ast );
 						break;
 					default:
-						throw new Exception(
+						throw $this->not_supported_exception(
 							sprintf(
-								'Unsupported statement type: "%s" > "%s"',
+								'statement type: "%s" > "%s"',
 								$ast->rule_name,
 								$subtree->rule_name
 							)
@@ -740,9 +736,9 @@ class WP_SQLite_Driver {
 						$this->execute_alter_table_statement( $ast );
 						break;
 					default:
-						throw new Exception(
+						throw $this->not_supported_exception(
 							sprintf(
-								'Unsupported statement type: "%s" > "%s"',
+								'statement type: "%s" > "%s"',
 								$ast->rule_name,
 								$subtree->rule_name
 							)
@@ -778,9 +774,9 @@ class WP_SQLite_Driver {
 						$this->execute_describe_statement( $subtree );
 						break;
 					default:
-						throw new Exception(
+						throw $this->not_supported_exception(
 							sprintf(
-								'Unsupported statement type: "%s" > "%s"',
+								'statement type: "%s" > "%s"',
 								$ast->rule_name,
 								$subtree->rule_name
 							)
@@ -788,7 +784,9 @@ class WP_SQLite_Driver {
 				}
 				break;
 			default:
-				throw new Exception( sprintf( 'Unsupported statement type: "%s"', $ast->rule_name ) );
+				throw $this->not_supported_exception(
+					sprintf( 'statement type: "%s"', $ast->rule_name )
+				);
 		}
 	}
 
@@ -1265,9 +1263,9 @@ class WP_SQLite_Driver {
 				$this->results = true;
 				return;
 			default:
-				throw new Exception(
+				throw $this->not_supported_exception(
 					sprintf(
-						'Unsupported statement type: "%s" > "%s"',
+						'statement type: "%s" > "%s"',
 						$node->rule_name,
 						$keyword1->value
 					)
@@ -1449,7 +1447,12 @@ class WP_SQLite_Driver {
 		}
 
 		if ( ! $ast instanceof WP_Parser_Node ) {
-			throw new Exception( 'translate_query only accepts WP_MySQL_Token and WP_Parser_Node instances' );
+			throw new WP_SQLite_Driver_Exception(
+				sprintf(
+					'Expected a WP_Parser_Node or WP_MySQL_Token instance, got: %s',
+					gettype( $ast )
+				)
+			);
 		}
 
 		$rule_name = $ast->rule_name;
@@ -1843,7 +1846,12 @@ class WP_SQLite_Driver {
 
 				$format = strtr( $mysql_format, self::DATE_FORMAT_TO_STRFTIME_MAP );
 				if ( ! $format ) {
-					throw new Exception( "Could not translate a DATE_FORMAT() format to STRFTIME format ($mysql_format)" );
+					throw new WP_SQLite_Driver_Exception(
+						sprintf(
+							'Could not translate a DATE_FORMAT() format to STRFTIME format (%s)',
+							$mysql_format
+						)
+					);
 				}
 
 				/*
@@ -1967,7 +1975,9 @@ class WP_SQLite_Driver {
 		)->fetch( PDO::FETCH_ASSOC );
 
 		if ( false === $table_info ) {
-			throw new Exception( 'Table not found in information_schema' );
+			throw new WP_SQLite_Driver_Exception(
+				sprintf( 'Table "%s" not found in information schema', $table_name )
+			);
 		}
 
 		// 2. Get column info.
@@ -2424,11 +2434,11 @@ class WP_SQLite_Driver {
 	}
 
 	private function invalid_input_exception() {
-		throw new Exception( 'MySQL query syntax error.' );
+		throw new WP_SQLite_Driver_Exception( 'MySQL query syntax error.' );
 	}
 
 	private function not_supported_exception( string $cause ): Exception {
-		return new Exception(
+		return new WP_SQLite_Driver_Exception(
 			sprintf( 'MySQL query not supported. Cause: %s', $cause )
 		);
 	}
