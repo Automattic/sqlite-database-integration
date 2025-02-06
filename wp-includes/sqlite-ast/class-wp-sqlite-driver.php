@@ -535,12 +535,16 @@ class WP_SQLite_Driver {
 			$this->execute_mysql_query( $ast );
 			$this->commit();
 			return $this->return_value;
-		} catch ( Exception $err ) {
-			$this->rollback();
-			if ( defined( 'PDO_DEBUG' ) && PDO_DEBUG === true ) {
-				throw $err;
+		} catch ( Throwable $e ) {
+			try {
+				$this->rollback();
+			} catch ( Throwable $rollback_exception ) {
+				// Ignore rollback errors.
 			}
-			return $this->handle_error( $err );
+			if ( defined( 'PDO_DEBUG' ) && PDO_DEBUG === true ) {
+				throw $e;
+			}
+			return $this->handle_error( $e );
 		}
 	}
 
