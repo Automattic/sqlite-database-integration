@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * SQLite information schema builder for MySQL.
+ *
+ * This class builds and maintains MySQL INFORMATION_SCHEMA tables in SQLite.
+ * It consumes the AST of MySQL DDL queries and records the schema information
+ * in SQLite tables that emulate the MySQL INFORMATION_SCHEMA.
+ */
 class WP_SQLite_Information_Schema_Builder {
 	/**
 	 * SQL definitions for tables that emulate MySQL "information_schema".
@@ -335,16 +342,16 @@ class WP_SQLite_Information_Schema_Builder {
 	/**
 	 * Constructor.
 	 *
-	 * @param string $db_name
-	 * @param callable(string, array): PDOStatement $query_callback
+	 * @param string                                $database       Database name.
+	 * @param callable(string, array): PDOStatement $query_callback A callback that executes an SQLite query.
 	 */
-	public function __construct( string $db_name, callable $query_callback ) {
-		$this->db_name        = $db_name;
+	public function __construct( string $database, callable $query_callback ) {
+		$this->db_name        = $database;
 		$this->query_callback = $query_callback;
 	}
 
 	/**
-	 * Ensure that the supported information schema tables exist in the SQLite
+	 * Ensure that the information schema tables exist in the SQLite
 	 * database. Tables that are missing will be created.
 	 */
 	public function ensure_information_schema_tables(): void {
@@ -356,7 +363,7 @@ class WP_SQLite_Information_Schema_Builder {
 	/**
 	 * Analyze CREATE TABLE statement and record data in the information schema.
 	 *
-	 * @param WP_Parser_Node $node AST node representing a CREATE TABLE statement.
+	 * @param WP_Parser_Node $node The "createStatement" AST node with "createTable" child.
 	 */
 	public function record_create_table( WP_Parser_Node $node ): void {
 		$table_name       = $this->get_value( $node->get_first_descendant_node( 'tableName' ) );
@@ -414,6 +421,11 @@ class WP_SQLite_Information_Schema_Builder {
 		}
 	}
 
+	/**
+	 * Analyze ALTER TABLE statement and record data in the information schema.
+	 *
+	 * @param WP_Parser_Node $node The "alterStatement" AST node with "alterTable" child.
+	 */
 	public function record_alter_table( WP_Parser_Node $node ): void {
 		$table_name = $this->get_value( $node->get_first_descendant_node( 'tableRef' ) );
 		$actions    = $node->get_descendant_nodes( 'alterListItem' );
@@ -496,6 +508,11 @@ class WP_SQLite_Information_Schema_Builder {
 		}
 	}
 
+	/**
+	 * Analyze DROP TABLE statement and record data in the information schema.
+	 *
+	 * @param WP_Parser_Node $node The "dropStatement" AST node with "dropTable" child.
+	 */
 	public function record_drop_table( WP_Parser_Node $node ): void {
 		$child_node = $node->get_first_child_node();
 		if ( $child_node->has_child_token( WP_MySQL_Lexer::TEMPORARY_SYMBOL ) ) {
@@ -531,6 +548,13 @@ class WP_SQLite_Information_Schema_Builder {
 		// @TODO: RESTRICT vs. CASCADE
 	}
 
+	/**
+	 * Analyze ADD COLUMN definition and record data in the information schema.
+	 *
+	 * @param string         $table_name  The table name.
+	 * @param string         $column_name The column name.
+	 * @param WP_Parser_Node $node        The "columnDefinition" or "fieldDefinition" AST node.
+	 */
 	private function record_add_column( string $table_name, string $column_name, WP_Parser_Node $node ): void {
 		$position = $this->query(
 			'
@@ -551,6 +575,14 @@ class WP_SQLite_Information_Schema_Builder {
 		}
 	}
 
+	/**
+	 * Analyze CHANGE COLUMN definition and record data in the information schema.
+	 *
+	 * @param string         $table_name      The table name.
+	 * @param string         $column_name     The column name.
+	 * @param string         $new_column_name The new column name when the column is renamed.
+	 * @param WP_Parser_Node $node            The "fieldDefinition" AST node.
+	 */
 	private function record_change_column(
 		string $table_name,
 		string $column_name,
@@ -597,6 +629,13 @@ class WP_SQLite_Information_Schema_Builder {
 		}
 	}
 
+	/**
+	 * Analyze MODIFY COLUMN definition and record data in the information schema.
+	 *
+	 * @param string         $table_name      The table name.
+	 * @param string         $column_name     The column name.
+	 * @param WP_Parser_Node $node            The "fieldDefinition" AST node.
+	 */
 	private function record_modify_column(
 		string $table_name,
 		string $column_name,
@@ -605,6 +644,12 @@ class WP_SQLite_Information_Schema_Builder {
 		$this->record_change_column( $table_name, $column_name, $column_name, $node );
 	}
 
+	/**
+	 * Record DROP COLUMN data in the information schema.
+	 *
+	 * @param string $table_name  The table name.
+	 * @param string $column_name The column name.
+	 */
 	private function record_drop_column( $table_name, $column_name ): void {
 		$this->delete_values(
 			'_mysql_information_schema_columns',
@@ -642,6 +687,12 @@ class WP_SQLite_Information_Schema_Builder {
 		$this->sync_column_key_info( $table_name );
 	}
 
+	/**
+	 * Record DROP INDEX data in the information schema.
+	 *
+	 * @param string $table_name The table name.
+	 * @param string $index_name The index name.
+	 */
 	private function record_drop_index( string $table_name, string $index_name ): void {
 		$this->delete_values(
 			'_mysql_information_schema_statistics',
@@ -654,6 +705,12 @@ class WP_SQLite_Information_Schema_Builder {
 		$this->sync_column_key_info( $table_name );
 	}
 
+	/**
+	 * Analyze ADD CONSTRAINT definition and record data in the information schema.
+	 *
+	 * @param string         $table_name  The table name.
+	 * @param WP_Parser_Node $node        The "tableConstraintDef" AST node.
+	 */
 	private function record_add_constraint( string $table_name, WP_Parser_Node $node ): void {
 		// Get first constraint keyword.
 		$children = $node->get_children();
@@ -767,6 +824,15 @@ class WP_SQLite_Information_Schema_Builder {
 		$this->sync_column_key_info( $table_name );
 	}
 
+	/**
+	 * Analyze "columnDefinition" or "fieldDefinition" AST node and extract column data.
+	 *
+	 * @param  string         $table_name  The table name.
+	 * @param  string         $column_name The column name.
+	 * @param  WP_Parser_Node $node        The "columnDefinition" or "fieldDefinition" AST node.
+	 * @param  int            $position    The ordinal position of the column in the table.
+	 * @return array                       Column data for the information schema.
+	 */
 	private function extract_column_data( string $table_name, string $column_name, WP_Parser_Node $node, int $position ): array {
 		$default  = $this->get_column_default( $node );
 		$nullable = $this->get_column_nullable( $node );
@@ -806,6 +872,15 @@ class WP_SQLite_Information_Schema_Builder {
 		);
 	}
 
+	/**
+	 * Analyze "columnDefinition" or "fieldDefinition" AST node and extract constraint data.
+	 *
+	 * @param  string         $table_name  The table name.
+	 * @param  string         $column_name The column name.
+	 * @param  WP_Parser_Node $node        The "columnDefinition" or "fieldDefinition" AST node.
+	 * @param  bool           $nullable    Whether the column is nullable.
+	 * @return array|null                  Constraint data for the information schema.
+	 */
 	private function extract_column_constraint_data( string $table_name, string $column_name, WP_Parser_Node $node, bool $nullable ): ?array {
 		// Handle inline PRIMARY KEY and UNIQUE constraints.
 		$has_inline_primary_key = null !== $node->get_first_descendant_token( WP_MySQL_Lexer::KEY_SYMBOL );
@@ -880,6 +955,12 @@ class WP_SQLite_Information_Schema_Builder {
 		);
 	}
 
+	/**
+	 * Extract table engine value from the "createStatement" AST node.
+	 *
+	 * @param  WP_Parser_Node $node The "createStatement" AST node with "createTable" child.
+	 * @return string               The table engine as stored in information schema.
+	 */
 	private function get_table_engine( WP_Parser_Node $node ): string {
 		$engine_node = $node->get_first_descendant_node( 'engineRef' );
 		if ( null === $engine_node ) {
@@ -895,6 +976,12 @@ class WP_SQLite_Information_Schema_Builder {
 		return $engine;
 	}
 
+	/**
+	 * Extract table collation value from the "createStatement" AST node.
+	 *
+	 * @param  WP_Parser_Node $node The "createStatement" AST node with "createTable" child.
+	 * @return string               The table collation as stored in information schema.
+	 */
 	private function get_table_collation( WP_Parser_Node $node ): string {
 		$collate_node = $node->get_first_descendant_node( 'collationName' );
 		if ( null === $collate_node ) {
@@ -904,6 +991,12 @@ class WP_SQLite_Information_Schema_Builder {
 		return strtolower( $this->get_value( $collate_node ) );
 	}
 
+	/**
+	 * Extract column default value from the "columnDefinition" or "fieldDefinition" AST node.
+	 *
+	 * @param  WP_Parser_Node $node The "columnDefinition" or "fieldDefinition" AST node.
+	 * @return string               The column default as stored in information schema.
+	 */
 	private function get_column_default( WP_Parser_Node $node ): ?string {
 		$default_attr = null;
 		foreach ( $node->get_descendant_nodes( 'columnAttribute' ) as $attr ) {
@@ -932,6 +1025,12 @@ class WP_SQLite_Information_Schema_Builder {
 		return $this->get_value( $default_attr->get_first_child_node() );
 	}
 
+	/**
+	 * Extract column nullability from the "columnDefinition" or "fieldDefinition" AST node.
+	 *
+	 * @param  WP_Parser_Node $node The "columnDefinition" or "fieldDefinition" AST node.
+	 * @return string               The column nullability as stored in information schema.
+	 */
 	private function get_column_nullable( WP_Parser_Node $node ): string {
 		// SERIAL is an alias for BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE.
 		$data_type = $node->get_first_descendant_node( 'dataType' );
@@ -956,33 +1055,45 @@ class WP_SQLite_Information_Schema_Builder {
 		return 'YES';
 	}
 
-	private function get_column_key( WP_Parser_Node $column_node ): string {
+	/**
+	 * Extract column key info from the "columnDefinition" or "fieldDefinition" AST node.
+	 *
+	 * @param  WP_Parser_Node $node The "columnDefinition" or "fieldDefinition" AST node.
+	 * @return string               The column key info as stored in information schema.
+	 */
+	private function get_column_key( WP_Parser_Node $node ): string {
 		// 1. PRI: Column is a primary key or its any component.
 		if (
-			null !== $column_node->get_first_descendant_token( WP_MySQL_Lexer::KEY_SYMBOL )
+			null !== $node->get_first_descendant_token( WP_MySQL_Lexer::KEY_SYMBOL )
 		) {
 			return 'PRI';
 		}
 
 		// SERIAL is an alias for BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE.
-		$data_type = $column_node->get_first_descendant_node( 'dataType' );
+		$data_type = $node->get_first_descendant_node( 'dataType' );
 		if ( null !== $data_type->get_first_descendant_token( WP_MySQL_Lexer::SERIAL_SYMBOL ) ) {
 			return 'PRI';
 		}
 
 		// 2. UNI: Column has UNIQUE constraint.
-		if ( null !== $column_node->get_first_descendant_token( WP_MySQL_Lexer::UNIQUE_SYMBOL ) ) {
+		if ( null !== $node->get_first_descendant_token( WP_MySQL_Lexer::UNIQUE_SYMBOL ) ) {
 			return 'UNI';
 		}
 
 		// 3. MUL: Column has INDEX.
-		if ( null !== $column_node->get_first_descendant_token( WP_MySQL_Lexer::INDEX_SYMBOL ) ) {
+		if ( null !== $node->get_first_descendant_token( WP_MySQL_Lexer::INDEX_SYMBOL ) ) {
 			return 'MUL';
 		}
 
 		return '';
 	}
 
+	/**
+	 * Extract column extra from the "columnDefinition" or "fieldDefinition" AST node.
+	 *
+	 * @param  WP_Parser_Node $node The "columnDefinition" or "fieldDefinition" AST node.
+	 * @return string               The column extra as stored in information schema.
+	 */
 	private function get_column_extra( WP_Parser_Node $node ): string {
 		$extras     = array();
 		$attributes = $node->get_descendant_nodes( 'columnAttribute' );
@@ -1023,6 +1134,12 @@ class WP_SQLite_Information_Schema_Builder {
 		return implode( ' ', $extras );
 	}
 
+	/**
+	 * Extract column comment from the "columnDefinition" or "fieldDefinition" AST node.
+	 *
+	 * @param  WP_Parser_Node $node The "columnDefinition" or "fieldDefinition" AST node.
+	 * @return string               The column comment as stored in information schema.
+	 */
 	private function get_column_comment( WP_Parser_Node $node ): string {
 		foreach ( $node->get_descendant_nodes( 'columnAttribute' ) as $attr ) {
 			if ( $attr->has_child_token( WP_MySQL_Lexer::COMMENT_SYMBOL ) ) {
@@ -1032,6 +1149,12 @@ class WP_SQLite_Information_Schema_Builder {
 		return '';
 	}
 
+	/**
+	 * Extract column data type from the "columnDefinition" or "fieldDefinition" AST node.
+	 *
+	 * @param  WP_Parser_Node $node    The "columnDefinition" or "fieldDefinition" AST node.
+	 * @return array{ string, string } The data type and column type as stored in information schema.
+	 */
 	private function get_column_data_types( WP_Parser_Node $node ): array {
 		$type_node = $node->get_first_descendant_node( 'dataType' );
 		$type      = $type_node->get_descendant_tokens();
@@ -1150,6 +1273,13 @@ class WP_SQLite_Information_Schema_Builder {
 		return array( $type, $full_type );
 	}
 
+	/**
+	 * Extract column charset and collation from the "columnDefinition" or "fieldDefinition" AST node.
+	 *
+	 * @param  WP_Parser_Node $node              The "columnDefinition" or "fieldDefinition" AST node.
+	 * @param  string         $data_type         The column data type as stored in information schema.
+	 * @return array{ string|null, string|null } The column charset and collation as stored in information schema.
+	 */
 	private function get_column_charset_and_collation( WP_Parser_Node $node, string $data_type ): array {
 		if ( ! (
 			'char' === $data_type
@@ -1235,6 +1365,14 @@ class WP_SQLite_Information_Schema_Builder {
 		return array( $charset, $collation );
 	}
 
+	/**
+	 * Extract column length info from the "columnDefinition" or "fieldDefinition" AST node.
+	 *
+	 * @param  WP_Parser_Node $node        The "columnDefinition" or "fieldDefinition" AST node.
+	 * @param  string         $data_type   The column data type as stored in information schema.
+	 * @param  string|null    $charset     The column charset as stored in information schema.
+	 * @return array{ int|null, int|null } The column char length and octet length as stored in information schema.
+	 */
 	private function get_column_lengths( WP_Parser_Node $node, string $data_type, ?string $charset ): array {
 		// Text and blob types.
 		if ( 'tinytext' === $data_type || 'tinyblob' === $data_type ) {
@@ -1284,6 +1422,13 @@ class WP_SQLite_Information_Schema_Builder {
 		return array( null, null );
 	}
 
+	/**
+	 * Extract column precision and scale from the "columnDefinition" or "fieldDefinition" AST node.
+	 *
+	 * @param  WP_Parser_Node $node        The "columnDefinition" or "fieldDefinition" AST node.
+	 * @param  string         $data_type   The column data type as stored in information schema.
+	 * @return array{ int|null, int|null } The column precision and scale as stored in information schema.
+	 */
 	private function get_column_numeric_attributes( WP_Parser_Node $node, string $data_type ): array {
 		if ( 'tinyint' === $data_type ) {
 			return array( 3, 0 );
@@ -1344,6 +1489,13 @@ class WP_SQLite_Information_Schema_Builder {
 		return array( null, null );
 	}
 
+	/**
+	 * Extract column date/time precision from the "columnDefinition" or "fieldDefinition" AST node.
+	 *
+	 * @param  WP_Parser_Node $node      The "columnDefinition" or "fieldDefinition" AST node.
+	 * @param  string         $data_type The column data type as stored in information schema.
+	 * @return int|null                  The date/time precision as stored in information schema.
+	 */
 	private function get_column_datetime_precision( WP_Parser_Node $node, string $data_type ): ?int {
 		if ( 'time' === $data_type || 'datetime' === $data_type || 'timestamp' === $data_type ) {
 			$precision = $node->get_first_descendant_node( 'typeDatetimePrecision' );
@@ -1356,6 +1508,12 @@ class WP_SQLite_Information_Schema_Builder {
 		return null;
 	}
 
+	/**
+	 * Extract column generation expression from the "columnDefinition" or "fieldDefinition" AST node.
+	 *
+	 * @param  WP_Parser_Node $node The "columnDefinition" or "fieldDefinition" AST node.
+	 * @return string               The column generation expression as stored in information schema.
+	 */
 	private function get_column_generation_expression( WP_Parser_Node $node ): string {
 		if ( null !== $node->get_first_descendant_token( WP_MySQL_Lexer::GENERATED_SYMBOL ) ) {
 			$expr = $node->get_first_descendant_node( 'exprWithParentheses' );
@@ -1364,6 +1522,12 @@ class WP_SQLite_Information_Schema_Builder {
 		return '';
 	}
 
+	/**
+	 * Extract index name from the "tableConstraintDef" AST node.
+	 *
+	 * @param  WP_Parser_Node $node The "tableConstraintDef" AST node.
+	 * @return string               The index name as stored in information schema.
+	 */
 	private function get_index_name( WP_Parser_Node $node ): string {
 		if ( $node->get_first_descendant_token( WP_MySQL_Lexer::PRIMARY_SYMBOL ) ) {
 			return 'PRIMARY';
@@ -1389,6 +1553,12 @@ class WP_SQLite_Information_Schema_Builder {
 		return $this->get_value( $name_node );
 	}
 
+	/**
+	 * Extract index non-unique value from the "tableConstraintDef" AST node.
+	 *
+	 * @param  WP_MySQL_Token $token The first constraint keyword.
+	 * @return int                   The value of non-unique as stored in information schema.
+	 */
 	private function get_index_non_unique( WP_MySQL_Token $token ): int {
 		if (
 			WP_MySQL_Lexer::PRIMARY_SYMBOL === $token->id
@@ -1399,6 +1569,14 @@ class WP_SQLite_Information_Schema_Builder {
 		return 1;
 	}
 
+	/**
+	 * Extract index type from the "tableConstraintDef" AST node.
+	 *
+	 * @param  WP_Parser_Node $node               The "tableConstraintDef" AST node.
+	 * @param  WP_MySQL_Token $token              The first constraint keyword.
+	 * @param  bool           $has_spatial_column Whether the index contains a spatial column.
+	 * @return string                             The index type as stored in information schema.
+	 */
 	private function get_index_type(
 		WP_Parser_Node $node,
 		WP_MySQL_Token $token,
@@ -1434,6 +1612,12 @@ class WP_SQLite_Information_Schema_Builder {
 		return 'BTREE';
 	}
 
+	/**
+	 * Extract index column name from the "keyPart" AST node.
+	 *
+	 * @param  WP_Parser_Node $node The "keyPart" AST node.
+	 * @return string               The index column name as stored in information schema.
+	 */
 	private function get_index_column_name( WP_Parser_Node $node ): ?string {
 		if ( 'keyPart' !== $node->rule_name ) {
 			return null;
@@ -1441,6 +1625,13 @@ class WP_SQLite_Information_Schema_Builder {
 		return $this->get_value( $node->get_first_descendant_node( 'identifier' ) );
 	}
 
+	/**
+	 * Extract index column name from the "keyPart" AST node.
+	 *
+	 * @param  WP_Parser_Node $node       The "keyPart" AST node.
+	 * @param  string         $index_type The index type as stored in information schema.
+	 * @return string                     The index column name as stored in information schema.
+	 */
 	private function get_index_column_collation( WP_Parser_Node $node, string $index_type ): ?string {
 		if ( 'FULLTEXT' === $index_type ) {
 			return null;
@@ -1454,6 +1645,14 @@ class WP_SQLite_Information_Schema_Builder {
 		return 'DESC' === $collate ? 'D' : 'A';
 	}
 
+	/**
+	 * Extract index column sub-part value from the "keyPart" AST node.
+	 *
+	 * @param  WP_Parser_Node $node       The "keyPart" AST node.
+	 * @param  int|null       $max_length The maximum character length of the index column.
+	 * @param  bool           $is_spatial Whether the index column is a spatial column.
+	 * @return int|null                   The index column sub-part value as stored in information schema.
+	 */
 	private function get_index_column_sub_part(
 		WP_Parser_Node $node,
 		?int $max_length,
@@ -1474,6 +1673,12 @@ class WP_SQLite_Information_Schema_Builder {
 		return $value;
 	}
 
+	/**
+	 * Determine whether the column data type is a spatial data type.
+	 *
+	 * @param  string $data_type The column data type as stored in information schema.
+	 * @return bool              Whether the column data type is a spatial data type.
+	 */
 	private function is_spatial_data_type( string $data_type ): bool {
 		return 'geometry' === $data_type
 			|| 'geomcollection' === $data_type
@@ -1499,8 +1704,8 @@ class WP_SQLite_Information_Schema_Builder {
 	 *        serialize the whole node, in the case of expressions. This may mean
 	 *        implementing an MySQL AST -> string printer.
 	 *
-	 * @param WP_Parser_Node $node
-	 * @return string
+	 * @param  WP_Parser_Node $node The AST node that needs to be serialized.
+	 * @return string               The serialized value of the node.
 	 */
 	private function get_value( WP_Parser_Node $node ): string {
 		$full_value = '';
@@ -1528,6 +1733,12 @@ class WP_SQLite_Information_Schema_Builder {
 		return $full_value;
 	}
 
+	/**
+	 * Insert values into an SQLite table.
+	 *
+	 * @param string                $table_name The name of the table.
+	 * @param array<string, string> $data       The data to insert (key is column name, value is column value).
+	 */
 	private function insert_values( string $table_name, array $data ): void {
 		$this->query(
 			'
@@ -1538,6 +1749,13 @@ class WP_SQLite_Information_Schema_Builder {
 		);
 	}
 
+	/**
+	 * Update values in an SQLite table.
+	 *
+	 * @param string                $table_name The name of the table.
+	 * @param array<string, string> $data       The data to update (key is column name, value is column value).
+	 * @param array<string, string> $where      The WHERE clause conditions (key is column name, value is column value).
+	 */
 	private function update_values( string $table_name, array $data, array $where ): void {
 		$set = array();
 		foreach ( $data as $column => $value ) {
@@ -1559,6 +1777,12 @@ class WP_SQLite_Information_Schema_Builder {
 		);
 	}
 
+	/**
+	 * Delete values from an SQLite table.
+	 *
+	 * @param string                $table_name The name of the table.
+	 * @param array<string, string> $where      The WHERE clause conditions (key is column name, value is column value).
+	 */
 	private function delete_values( string $table_name, array $where ): void {
 		$where_clause = array();
 		foreach ( $where as $column => $value ) {
@@ -1575,8 +1799,11 @@ class WP_SQLite_Information_Schema_Builder {
 	}
 
 	/**
-	 * @param string $query
-	 * @param array $params
+	 * Execute an SQLite query.
+	 *
+	 * @param  string $query  The query to execute.
+	 * @param  array  $params The query parameters.
+	 *
 	 * @return PDOStatement
 	 */
 	private function query( string $query, array $params = array() ) {

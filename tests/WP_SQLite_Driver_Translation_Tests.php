@@ -1285,7 +1285,7 @@ class WP_SQLite_Driver_Translation_Tests extends TestCase {
 		// Remove "select changes()" executed after some queries.
 		if (
 			count( $executed_queries ) > 1
-			&& 'select changes()' === $executed_queries[ count( $executed_queries ) - 1 ] ) {
+			&& 'SELECT CHANGES()' === $executed_queries[ count( $executed_queries ) - 1 ] ) {
 			array_pop( $executed_queries );
 		}
 
