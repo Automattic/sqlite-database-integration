@@ -21,6 +21,14 @@ class WP_SQLite_Driver {
 	const MYSQL_GRAMMAR_PATH = __DIR__ . '/../../wp-includes/mysql/mysql-grammar.php';
 
 	/**
+	 * The minimum required version of SQLite.
+	 *
+	 * Currently, we require SQLite >= 3.37.0 due to the STRICT table support:
+	 *   https://www.sqlite.org/stricttables.html
+	 */
+	const MINIMUM_SQLITE_VERSION = '3.37.0';
+
+	/**
 	 * The default timeout in seconds for SQLite to wait for a writable lock.
 	 */
 	const DEFAULT_SQLITE_TIMEOUT = 10;
@@ -365,6 +373,21 @@ class WP_SQLite_Driver {
 		// Return all values (except null) as strings.
 		$this->pdo->setAttribute( PDO::ATTR_STRINGIFY_FETCHES, true );
 
+		// Check the SQLite version.
+		$sqlite_version = $this->get_sqlite_version();
+		if ( version_compare( $sqlite_version, self::MINIMUM_SQLITE_VERSION, '<' ) ) {
+			throw $this->new_driver_exception(
+				sprintf(
+					'The SQLite version %s is not supported. Minimum required version is %s.',
+					$sqlite_version,
+					self::MINIMUM_SQLITE_VERSION
+				)
+			);
+		}
+
+		// Load SQLite version to a property used by WordPress health info.
+		$this->client_info = $sqlite_version;
+
 		// Enable foreign keys. By default, they are off.
 		$this->pdo->query( 'PRAGMA foreign_keys = ON' );
 
@@ -394,9 +417,6 @@ class WP_SQLite_Driver {
 			array( $this, 'execute_sqlite_query' )
 		);
 		$this->information_schema_builder->ensure_information_schema_tables();
-
-		// Load SQLite version to a property used by WordPress health info.
-		$this->client_info = $this->get_sqlite_version();
 	}
 
 	/**
