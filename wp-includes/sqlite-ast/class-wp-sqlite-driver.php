@@ -182,7 +182,7 @@ class WP_SQLite_Driver {
 	 *   https://www.sqlite.org/lang_datefunc.html
 	 *   https://strftime.org/
 	 */
-	const DATE_FORMAT_TO_STRFTIME_MAP = array(
+	const MYSQL_DATE_FORMAT_TO_SQLITE_STRFTIME_MAP = array(
 		'%a' => '%D',
 		'%b' => '%M',
 		'%c' => '%n',
@@ -1985,7 +1985,7 @@ class WP_SQLite_Driver {
 			case 'DATE_FORMAT':
 				list ( $date, $mysql_format ) = $args;
 
-				$format = strtr( $mysql_format, self::DATE_FORMAT_TO_STRFTIME_MAP );
+				$format = strtr( $mysql_format, self::MYSQL_DATE_FORMAT_TO_SQLITE_STRFTIME_MAP );
 				if ( ! $format ) {
 					throw $this->new_driver_exception(
 						sprintf(
