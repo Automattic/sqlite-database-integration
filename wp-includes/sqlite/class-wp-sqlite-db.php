@@ -125,25 +125,22 @@ class WP_SQLite_DB extends wpdb {
 	}
 
 	/**
-	 * Method to put out the error message.
+	 * Prints SQL/DB error.
 	 *
-	 * This overrides wpdb::print_error(), for we can't use the parent class method.
-	 *
-	 * @see wpdb::print_error()
+	 * This overrides wpdb::print_error() while closely mirroring its implementation.
 	 *
 	 * @global array $EZSQL_ERROR Stores error information of query and error string.
 	 *
 	 * @param string $str The error to display.
-	 *
-	 * @return bool|void False if the showing of errors is disabled.
+	 * @return void|false Void if the showing of errors is enabled, false if disabled.
 	 */
 	public function print_error( $str = '' ) {
 		global $EZSQL_ERROR;
 
 		if ( ! $str ) {
-			$err = $this->dbh->get_error_message() ? $this->dbh->get_error_message() : '';
-			$str = empty( $err ) ? '' : $err[2];
+			$str = $this->last_error;
 		}
+
 		$EZSQL_ERROR[] = array(
 			'query'     => $this->last_query,
 			'error_str' => $str,
@@ -153,26 +150,32 @@ class WP_SQLite_DB extends wpdb {
 			return false;
 		}
 
-		wp_load_translations_early();
-
 		$caller = $this->get_caller();
-		$caller = $caller ? $caller : '(unknown)';
-
-		$error_str = sprintf(
-			'WordPress database error %1$s for query %2$s made by %3$s',
-			$str,
-			$this->last_query,
-			$caller
-		);
+		if ( $caller ) {
+			// Not translated, as this will only appear in the error log.
+			$error_str = sprintf( 'WordPress database error %1$s for query %2$s made by %3$s', $str, $this->last_query, $caller );
+		} else {
+			$error_str = sprintf( 'WordPress database error %1$s for query %2$s', $str, $this->last_query );
+		}
 
 		error_log( $error_str );
 
+		// Are we showing errors?
 		if ( ! $this->show_errors ) {
 			return false;
 		}
 
+		wp_load_translations_early();
+
+		// If there is an error then take note of it.
 		if ( is_multisite() ) {
-			$msg = "WordPress database error: [$str]\n{$this->last_query}\n";
+			$msg = sprintf(
+				"%s [%s]\n%s\n",
+				__( 'WordPress database error:' ),
+				$str,
+				$this->last_query
+			);
+
 			if ( defined( 'ERRORLOGFILE' ) ) {
 				error_log( $msg, 3, ERRORLOGFILE );
 			}
@@ -184,9 +187,10 @@ class WP_SQLite_DB extends wpdb {
 			$query = htmlspecialchars( $this->last_query, ENT_QUOTES );
 
 			printf(
-				'<div id="error"><p class="wpdberror">WordPress database error: [%1$s] %2$s</p></div>',
+				'<div id="error"><p class="wpdberror"><strong>%s</strong> [%s]<br /><code>%s</code></p></div>',
+				__( 'WordPress database error:' ),
 				$str,
-				'<code>' . $query . '</code>'
+				$query
 			);
 		}
 	}
@@ -229,8 +233,35 @@ class WP_SQLite_DB extends wpdb {
 		if ( isset( $GLOBALS['@pdo'] ) ) {
 			$pdo = $GLOBALS['@pdo'];
 		}
-		$this->dbh        = new WP_SQLite_Translator( $pdo );
-		$this->last_error = $this->dbh->get_error_message();
+		if ( defined( 'WP_SQLITE_AST_DRIVER' ) && WP_SQLITE_AST_DRIVER ) {
+			require_once __DIR__ . '/../../wp-includes/parser/class-wp-parser-grammar.php';
+			require_once __DIR__ . '/../../wp-includes/parser/class-wp-parser.php';
+			require_once __DIR__ . '/../../wp-includes/parser/class-wp-parser-node.php';
+			require_once __DIR__ . '/../../wp-includes/parser/class-wp-parser-token.php';
+			require_once __DIR__ . '/../../wp-includes/mysql/class-wp-mysql-token.php';
+			require_once __DIR__ . '/../../wp-includes/mysql/class-wp-mysql-lexer.php';
+			require_once __DIR__ . '/../../wp-includes/mysql/class-wp-mysql-parser.php';
+			require_once __DIR__ . '/../../wp-includes/sqlite-ast/class-wp-sqlite-driver.php';
+			require_once __DIR__ . '/../../wp-includes/sqlite-ast/class-wp-sqlite-driver-exception.php';
+			require_once __DIR__ . '/../../wp-includes/sqlite-ast/class-wp-sqlite-information-schema-builder.php';
+			$this->ensure_database_directory( FQDB );
+
+			try {
+				$this->dbh = new WP_SQLite_Driver(
+					array(
+						'connection'          => $pdo,
+						'path'                => FQDB,
+						'database'            => $this->dbname,
+						'sqlite_journal_mode' => defined( 'SQLITE_JOURNAL_MODE' ) ? SQLITE_JOURNAL_MODE : null,
+					)
+				);
+			} catch ( Throwable $e ) {
+				$this->last_error = $this->format_error_message( $e );
+			}
+		} else {
+			$this->dbh        = new WP_SQLite_Translator( $pdo );
+			$this->last_error = $this->dbh->get_error_message();
+		}
 		if ( $this->last_error ) {
 			return false;
 		}
@@ -250,16 +281,17 @@ class WP_SQLite_DB extends wpdb {
 	}
 
 	/**
-	 * Method to execute the query.
+	 * Performs a database query.
 	 *
-	 * This overrides wpdb::query(). In fact, this method does all the database
-	 * access jobs.
+	 * This overrides wpdb::query() while closely mirroring its implementation.
 	 *
 	 * @see wpdb::query()
 	 *
 	 * @param string $query Database query.
 	 *
-	 * @return int|false Number of rows affected/selected or false on error
+	 * @param string $query Database query.
+	 * @return int|bool Boolean true for CREATE, ALTER, TRUNCATE and DROP queries. Number of rows
+	 *                  affected/selected for all other queries. Boolean false on error.
 	 */
 	public function query( $query ) {
 		if ( ! $this->ready ) {
@@ -268,43 +300,108 @@ class WP_SQLite_DB extends wpdb {
 
 		$query = apply_filters( 'query', $query );
 
+		if ( ! $query ) {
+			$this->insert_id = 0;
+			return false;
+		}
+
 		$this->flush();
 
-		$this->func_call  = "\$db->query(\"$query\")";
+		// Log how the function was called.
+		$this->func_call = "\$db->query(\"$query\")";
+
+		// Keep track of the last query for debug.
 		$this->last_query = $query;
 
+		/*
+		 * @TODO: WPDB uses "$this->check_current_query" to check table/column
+		 *        charset and strip all invalid characters from the query.
+		 *        This is an involved process that we can bypass for SQLite,
+		 *        if we simply strip all invalid UTF-8 characters from the query.
+		 *
+		 *        To do so, mb_convert_encoding can be used with an optional
+		 *        fallback to a htmlspecialchars method. E.g.:
+		 *          https://github.com/nette/utils/blob/be534713c227aeef57ce1883fc17bc9f9e29eca2/src/Utils/Strings.php#L42
+		 */
+		$this->_do_query( $query );
+
+		if ( $this->last_error ) {
+			// Clear insert_id on a subsequent failed insert.
+			if ( $this->insert_id && preg_match( '/^\s*(insert|replace)\s/i', $query ) ) {
+				$this->insert_id = 0;
+			}
+
+			$this->print_error();
+			return false;
+		}
+
+		if ( preg_match( '/^\s*(create|alter|truncate|drop)\s/i', $query ) ) {
+			$return_val = true;
+		} elseif ( preg_match( '/^\s*(insert|delete|update|replace)\s/i', $query ) ) {
+			if ( $this->dbh instanceof WP_SQLite_Driver ) {
+				$this->rows_affected = $this->dbh->get_last_return_value();
+			} else {
+				$this->rows_affected = $this->dbh->get_rows_affected();
+			}
+
+			// Take note of the insert_id.
+			if ( preg_match( '/^\s*(insert|replace)\s/i', $query ) ) {
+				$this->insert_id = $this->dbh->get_insert_id();
+			}
+
+			// Return number of rows affected.
+			$return_val = $this->rows_affected;
+		} else {
+			$num_rows = 0;
+
+			if ( is_array( $this->result ) ) {
+				$this->last_result = $this->result;
+				$num_rows          = count( $this->result );
+			}
+
+			// Log and return the number of rows selected.
+			$this->num_rows = $num_rows;
+			$return_val     = $num_rows;
+		}
+
+		return $return_val;
+	}
+
+	/**
+	 * Internal function to perform the SQLite query call.
+	 *
+	 * This closely mirrors wpdb::_do_query().
+	 *
+	 * @see wpdb::_do_query()
+	 *
+	 * @param string $query The query to run.
+	 */
+	private function _do_query( $query ) {
 		if ( defined( 'SAVEQUERIES' ) && SAVEQUERIES ) {
 			$this->timer_start();
 		}
 
-		$this->result = $this->dbh->query( $query );
+		try {
+			$this->result = $this->dbh->query( $query );
+		} catch ( Throwable $e ) {
+			$this->last_error = $this->format_error_message( $e );
+		}
+
+		if ( $this->dbh instanceof WP_SQLite_Translator ) {
+			$this->last_error = $this->dbh->get_error_message();
+		}
+
 		++$this->num_queries;
 
 		if ( defined( 'SAVEQUERIES' ) && SAVEQUERIES ) {
-			$this->queries[] = array( $query, $this->timer_stop(), $this->get_caller() );
+			$this->log_query(
+				$query,
+				$this->timer_stop(),
+				$this->get_caller(),
+				$this->time_start,
+				array()
+			);
 		}
-
-		$this->last_error = $this->dbh->get_error_message();
-		if ( $this->last_error ) {
-			$this->print_error( $this->last_error );
-			return false;
-		}
-
-		if ( preg_match( '/^\\s*(set|create|alter|truncate|drop|optimize)\\s*/i', $query ) ) {
-			return $this->dbh->get_return_value();
-		}
-
-		if ( preg_match( '/^\\s*(insert|delete|update|replace)\s/i', $query ) ) {
-			$this->rows_affected = $this->dbh->get_affected_rows();
-			if ( preg_match( '/^\s*(insert|replace)\s/i', $query ) ) {
-				$this->insert_id = $this->dbh->get_insert_id();
-			}
-			return $this->rows_affected;
-		}
-
-		$this->last_result = $this->dbh->get_query_results();
-		$this->num_rows    = $this->dbh->get_num_rows();
-		return $this->num_rows;
 	}
 
 	/**
@@ -353,11 +450,95 @@ class WP_SQLite_DB extends wpdb {
 	}
 
 	/**
-	 * Retrieves full database server information.
+	 * Returns the version of the SQLite engine.
 	 *
-	 * @return string|false Server info on success, false on failure.
+	 * @return string SQLite engine version as a string.
 	 */
 	public function db_server_info() {
-		return SQLite3::version()['versionString'];
+		return $this->dbh->get_sqlite_version();
+	}
+
+	/**
+	 * Make sure the SQLite database directory exists and is writable.
+	 * Create .htaccess and index.php files to prevent direct access.
+	 *
+	 * @param string $database_path The path to the SQLite database file.
+	 */
+	private function ensure_database_directory( string $database_path ) {
+		$dir = dirname( $database_path );
+
+		// Set the umask to 0000 to apply permissions exactly as specified.
+		// A non-zero umask affects new file and directory permissions.
+		$umask = umask( 0 );
+
+		// Ensure database directory.
+		if ( ! is_dir( $dir ) ) {
+			if ( ! @mkdir( $dir, 0700, true ) ) {
+				wp_die( sprintf( 'Failed to create database directory: %s', $dir ), 'Error!' );
+			}
+		}
+		if ( ! is_writable( $dir ) ) {
+			wp_die( sprintf( 'Database directory is not writable: %s', $dir ), 'Error!' );
+		}
+
+		// Ensure .htaccess file to prevent direct access.
+		$path = $dir . DIRECTORY_SEPARATOR . '.htaccess';
+		if ( ! is_file( $path ) ) {
+			$result = file_put_contents( $path, 'DENY FROM ALL', LOCK_EX );
+			if ( false === $result ) {
+				wp_die( sprintf( 'Failed to create file: %s', $path ), 'Error!' );
+			}
+			chmod( $path, 0600 );
+		}
+
+		// Ensure index.php file to prevent direct access.
+		$path = $dir . DIRECTORY_SEPARATOR . 'index.php';
+		if ( ! is_file( $path ) ) {
+			$result = file_put_contents( $path, '<?php // Silence is gold. ?>', LOCK_EX );
+			if ( false === $result ) {
+				wp_die( sprintf( 'Failed to create file: %s', $path ), 'Error!' );
+			}
+			chmod( $path, 0600 );
+		}
+
+		// Restore the original umask value.
+		umask( $umask );
+	}
+
+
+	/**
+	 * Format SQLite driver error message.
+	 *
+	 * @return string
+	 */
+	private function format_error_message( Throwable $e ) {
+		$output = '<div style="clear:both">&nbsp;</div>' . PHP_EOL;
+
+		// Queries.
+		if ( $e instanceof WP_SQLite_Driver_Exception ) {
+			$driver = $e->getDriver();
+
+			$output .= '<div class="queries" style="clear:both;margin-bottom:2px;border:red dotted thin;">' . PHP_EOL;
+			$output .= '<p>MySQL query:</p>' . PHP_EOL;
+			$output .= '<p>' . $driver->get_last_mysql_query() . '</p>' . PHP_EOL;
+			$output .= '<p>Queries made or created this session were:</p>' . PHP_EOL;
+			$output .= '<ol>' . PHP_EOL;
+			foreach ( $driver->get_last_sqlite_queries() as $q ) {
+				$message = "Executing: {$q['sql']} | " . ( $q['params'] ? 'parameters: ' . implode( ', ', $q['params'] ) : '(no parameters)' );
+				$output .= '<li>' . htmlspecialchars( $message ) . '</li>' . PHP_EOL;
+			}
+			$output .= '</ol>' . PHP_EOL;
+			$output .= '</div>' . PHP_EOL;
+		}
+
+		// Message.
+		$output .= '<div style="clear:both;margin-bottom:2px;border:red dotted thin;" class="error_message" style="border-bottom:dotted blue thin;">' . PHP_EOL;
+		$output .= $e->getMessage() . PHP_EOL;
+		$output .= '</div>' . PHP_EOL;
+
+		// Backtrace.
+		$output .= '<p>Backtrace:</p>' . PHP_EOL;
+		$output .= '<pre>' . $e->getTraceAsString() . '</pre>' . PHP_EOL;
+		return $output;
 	}
 }

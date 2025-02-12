@@ -394,7 +394,7 @@ class WP_SQLite_Translator {
 			}
 		}
 
-		new WP_SQLite_PDO_User_Defined_Functions( $pdo );
+		WP_SQLite_PDO_User_Defined_Functions::register_for( $pdo );
 
 		// MySQL data comes across stringified by default.
 		$pdo->setAttribute( PDO::ATTR_STRINGIFY_FETCHES, true ); // phpcs:ignore WordPress.DB.RestrictedClasses.mysql__PDO
@@ -410,7 +410,7 @@ class WP_SQLite_Translator {
 		$this->pdo = $pdo;
 
 		// Fixes a warning in the site-health screen.
-		$this->client_info = SQLite3::version()['versionString'];
+		$this->client_info = $this->get_sqlite_version();
 
 		register_shutdown_function( array( $this, '__destruct' ) );
 
@@ -472,6 +472,15 @@ class WP_SQLite_Translator {
 	 */
 	public function get_pdo() {
 		return $this->pdo;
+	}
+
+	/**
+	 * Get the version of the SQLite engine.
+	 *
+	 * @return string SQLite engine version as a string.
+	 */
+	public function get_sqlite_version(): string {
+		return $this->pdo->query( 'SELECT SQLITE_VERSION()' )->fetchColumn();
 	}
 
 	/**
