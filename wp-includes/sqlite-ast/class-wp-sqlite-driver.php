@@ -170,6 +170,65 @@ class WP_SQLite_Driver {
 		'geometrycollection' => 'TEXT',
 	);
 
+	const DATA_TYPE_IMPLICIT_DEFAULT_MAP = array(
+		// Numeric data types:
+		'bit'                => '0',
+		'bool'               => '0',
+		'boolean'            => '0',
+		'tinyint'            => '0',
+		'smallint'           => '0',
+		'mediumint'          => '0',
+		'int'                => '0',
+		'integer'            => '0',
+		'bigint'             => '0',
+		'float'              => '0',
+		'double'             => '0',
+		'real'               => '0',
+		'decimal'            => '0',
+		'dec'                => '0',
+		'fixed'              => '0',
+		'numeric'            => '0',
+
+		// String data types:
+		'char'               => '',
+		'varchar'            => '',
+		'nchar'              => '',
+		'nvarchar'           => '',
+		'tinytext'           => '',
+		'text'               => '',
+		'mediumtext'         => '',
+		'longtext'           => '',
+		'enum'               => '', // TODO: Implement.
+		'set'                => 'TEXT', // TODO: Implement.
+		'json'               => 'null',
+
+		// Date and time data types:
+		'date'               => '0000-00-00',
+		'time'               => '00:00:00',
+		'datetime'           => '0000-00-00 00:00:00',
+		'timestamp'          => '0000-00-00 00:00:00',
+		'year'               => '0000',
+
+		// Binary data types:
+		'binary'             => '',
+		'varbinary'          => '',
+		'tinyblob'           => '',
+		'blob'               => '',
+		'mediumblob'         => '',
+		'longblob'           => '',
+
+		// Spatial data types:
+		'geometry'           => null,
+		'point'              => null,
+		'linestring'         => null,
+		'polygon'            => null,
+		'multipoint'         => null,
+		'multilinestring'    => null,
+		'multipolygon'       => null,
+		'geomcollection'     => null,
+		'geometrycollection' => null,
+	);
+
 	/**
 	 * A map of MySQL to SQLite date format translation.
 	 *
@@ -430,6 +489,41 @@ class WP_SQLite_Driver {
 		if ( null === self::$mysql_grammar ) {
 			self::$mysql_grammar = new WP_Parser_Grammar( require self::MYSQL_GRAMMAR_PATH );
 		}
+
+		// Ensure global variables table exists.
+		$global_variables_table_name = self::RESERVED_PREFIX . 'global_variables';
+		$this->pdo->query(
+			sprintf(
+				'CREATE TABLE IF NOT EXISTS %s ( name TEXT PRIMARY KEY, value TEXT ) STRICT',
+				$global_variables_table_name,
+			)
+		);
+
+		// Set default SQL mode.
+		$default_sql_mode = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
+		$this->pdo->query(
+			sprintf(
+				"REPLACE INTO %s ( name, value ) VALUES ( 'sql_mode', '%s' )",
+				$global_variables_table_name,
+				$default_sql_mode
+			)
+		);
+
+		// Create session variables table and initialize it with global variables.
+		$session_variables_table_name = self::RESERVED_PREFIX . 'session_variables';
+		$this->pdo->query(
+			sprintf(
+				'CREATE TEMPORARY TABLE IF NOT EXISTS %s ( name TEXT PRIMARY KEY, value TEXT ) STRICT',
+				$session_variables_table_name,
+			)
+		);
+		$this->pdo->query(
+			sprintf(
+				'INSERT INTO %s ( name, value ) SELECT name, value FROM %s',
+				$session_variables_table_name,
+				$global_variables_table_name
+			)
+		);
 
 		// Initialize information schema builder.
 		$this->information_schema_builder = new WP_SQLite_Information_Schema_Builder(
@@ -2690,9 +2784,12 @@ class WP_SQLite_Driver {
 			if ( 'TEXT' === $type ) {
 				$query .= ' COLLATE NOCASE';
 			}
-			if ( 'NO' === $column['IS_NULLABLE'] ) {
-				$query .= ' NOT NULL';
-			}
+
+			/*
+			 * We don't add any NOT NULL constraints here, because they will be
+			 * handled depending on the currently active SQL mode using triggers.
+			 */
+
 			if ( 'auto_increment' === $column['EXTRA'] ) {
 				$has_autoincrement = true;
 				$query            .= ' PRIMARY KEY AUTOINCREMENT';
@@ -2778,6 +2875,15 @@ class WP_SQLite_Driver {
 			}
 		}
 
+		$implicit_defaults_trigger_queries = array_values(
+			array_filter(
+				array(
+					$this->get_strict_mode_trigger_query( 'INSERT', $table_name, $column_info ),
+					$this->get_strict_mode_trigger_query( 'UPDATE', $table_name, $column_info ),
+				)
+			)
+		);
+
 		// 6. Compose the CREATE TABLE statement.
 		$create_table_query  = sprintf(
 			"CREATE %sTABLE %s (\n",
@@ -2786,7 +2892,12 @@ class WP_SQLite_Driver {
 		);
 		$create_table_query .= implode( ",\n", $rows );
 		$create_table_query .= "\n) STRICT";
-		return array_merge( array( $create_table_query ), $create_index_queries, $on_update_queries );
+		return array_merge(
+			array( $create_table_query ),
+			$create_index_queries,
+			$on_update_queries,
+			$implicit_defaults_trigger_queries
+		);
 	}
 
 	/**
@@ -2932,6 +3043,97 @@ class WP_SQLite_Driver {
 		return $sql;
 	}
 
+	/**
+	 * Get an SQLite query to emulate MySQL's implicit defaults or strict mode.
+	 *
+	 * In MySQL, when a column is NOT NULL, the behavior of INSERT and UPDATE
+	 * statements depends on whether the STRICT_TRANS_TABLES/STRICT_ALL_TABLES
+	 * SQL mode is enabled. The SQL mode can be changed at runtime.
+	 *
+	 * When STRICT_TRANS_TABLES or STRICT_ALL_TABLES is enabled:
+	 *   1. NULL + NO DEFAULT:     No value saves NULL, NULL saves NULL, DEFAULT saves NULL.
+	 *   2. NULL + DEFAULT:        No value saves DEFAULT, NULL saves NULL, DEFAULT saves DEFAULT.
+	 *   3. NOT NULL + NO DEFAULT: No value is rejected, NULL is rejected, DEFAULT is rejected.
+	 *   4. NOT NULL + DEFAULT:    No value saves DEFAULT, NULL is rejected, DEFAULT saves DEFAULT.
+	 *
+	 * When STRICT_TRANS_TABLES and STRICT_ALL_TABLES are disabled:
+	 *   1. NULL + NO DEFAULT:     No value saves NULL, NULL saves NULL, DEFAULT saves NULL.
+	 *   2. NULL + DEFAULT:        No value saves DEFAULT, NULL saves NULL, DEFAULT saves DEFAULT.
+	 *   3. NOT NULL + NO DEFAULT: No value saves IMPLICIT DEFAULT.
+	 *                             NULL is rejected on INSERT, but saves IMPLICIT DEFAULT on UPDATE.
+	 *                             DEFAULT saves IMPLICIT DEFAULT.
+	 *   4. NOT NULL + DEFAULT:    No value saves DEFAULT.
+	 *                             NULL is rejected on INSERT, but saves IMPLICIT DEFAULT on UPDATE.
+	 *                             DEFAULT saves DEFAULT.
+	 *
+	 * @param  string $operation The operation to create the trigger for. One of 'INSERT' or 'UPDATE'.
+	 * @param  string $table     The table name.
+	 * @param  array  $columns   The columns to check for implicit defaults.
+	 * @return string|null       The CREATE TRIGGER query, or null if no trigger is needed.
+	 */
+	private function get_strict_mode_trigger_query( string $operation, string $table, array $columns ): ?string {
+		if ( 'INSERT' !== $operation && 'UPDATE' !== $operation ) {
+			throw new InvalidArgumentException( 'Invalid operation' );
+		}
+
+		// Get the columns that may have implicit defaults (= NOT NULL and no DEFAULT).
+		$defaults = array();
+		foreach ( $columns as $column ) {
+			if ( 'NO' === $column['IS_NULLABLE'] ) {
+				$defaults[ $column['COLUMN_NAME'] ] = self::DATA_TYPE_IMPLICIT_DEFAULT_MAP[ $column['DATA_TYPE'] ] ?? null;
+			}
+		}
+		if ( count( $defaults ) === 0 ) {
+			return null; // No trigger is needed for given table.
+		}
+
+		// Get the trigger name.
+		$trigger_name = sprintf(
+			'%s%s_strict_mode_%s',
+			self::RESERVED_PREFIX,
+			$table,
+			strtolower( $operation )
+		);
+
+		// Create the trigger query.
+		$sql  = 'CREATE TRIGGER ' . $trigger_name;
+		$sql .= ' AFTER ' . $operation . ' ON ' . $table;
+		$sql .= ' FOR EACH ROW';
+
+		// Run the trigger only if any of the NOT NULL columns receive a NULL.
+		// E.g.: "WHEN NEW.col1 IS NULL OR NEW.col2 IS NULL OR ..."
+		$sql .= ' WHEN ';
+		foreach ( array_keys( $defaults ) as $i => $column ) {
+			$sql .= sprintf(
+				'%sNEW.%s IS NULL',
+				$i > 0 ? ' OR ' : '',
+				$this->quote_sqlite_identifier( $column )
+			);
+		}
+
+		// Compose the trigger body.
+		$sql .= ' BEGIN';
+
+		// With STRICT_TRANS_TABLES and STRICT_ALL_TABLES enabled, bail out.
+		$session_variables_table_name = self::RESERVED_PREFIX . 'session_variables';
+		$sql                         .= ' SELECT CASE WHEN EXISTS (SELECT value FROM ' . "temp.$session_variables_table_name" . ' WHERE name = "sql_mode") LIKE "%STRICT_%" THEN RAISE(ABORT, "SQL mode is STRICT") END;';
+
+		// Replace NULL values with implicit defaults.
+		$sql .= ' UPDATE ' . $this->quote_sqlite_identifier( $table ) . ' SET ';
+		foreach ( array_keys( $defaults ) as $i => $column ) {
+			$sql .= sprintf(
+				'%s%s = COALESCE(NEW.%s, %s)',
+				$i > 0 ? ', ' : '',
+				$this->quote_sqlite_identifier( $column ),
+				$this->quote_sqlite_identifier( $column ),
+				null === $defaults[ $column ] ? 'NULL' : "'$defaults[$column]'"
+			);
+		}
+		$sql .= ' WHERE rowid = NEW.rowid;';
+
+		$sql .= ' END';
+		return $sql;
+	}
 
 	/**
 	 * Get an SQLite query to emulate MySQL "ON UPDATE CURRENT_TIMESTAMP".
