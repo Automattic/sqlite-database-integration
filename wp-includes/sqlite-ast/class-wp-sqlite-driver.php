@@ -215,6 +215,65 @@ class WP_SQLite_Driver {
 		'%y' => '%y',
 	);
 
+	const DATA_TYPE_IMPLICIT_DEFAULT_MAP = array(
+		// Numeric data types:
+		'bit'                => '0',
+		'bool'               => '0',
+		'boolean'            => '0',
+		'tinyint'            => '0',
+		'smallint'           => '0',
+		'mediumint'          => '0',
+		'int'                => '0',
+		'integer'            => '0',
+		'bigint'             => '0',
+		'float'              => '0',
+		'double'             => '0',
+		'real'               => '0',
+		'decimal'            => '0',
+		'dec'                => '0',
+		'fixed'              => '0',
+		'numeric'            => '0',
+
+		// String data types:
+		'char'               => '',
+		'varchar'            => '',
+		'nchar'              => '',
+		'nvarchar'           => '',
+		'tinytext'           => '',
+		'text'               => '',
+		'mediumtext'         => '',
+		'longtext'           => '',
+		'enum'               => '', // TODO: Implement.
+		'set'                => 'TEXT', // TODO: Implement.
+		'json'               => 'null',
+
+		// Date and time data types:
+		'date'               => '0000-00-00',
+		'time'               => '00:00:00',
+		'datetime'           => '0000-00-00 00:00:00',
+		'timestamp'          => '0000-00-00 00:00:00',
+		'year'               => '0000',
+
+		// Binary data types:
+		'binary'             => '',
+		'varbinary'          => '',
+		'tinyblob'           => '',
+		'blob'               => '',
+		'mediumblob'         => '',
+		'longblob'           => '',
+
+		// Spatial data types:
+		'geometry'           => null,
+		'point'              => null,
+		'linestring'         => null,
+		'polygon'            => null,
+		'multipoint'         => null,
+		'multilinestring'    => null,
+		'multipolygon'       => null,
+		'geomcollection'     => null,
+		'geometrycollection' => null,
+	);
+
 	/**
 	 * The SQLite engine version.
 	 *
@@ -912,13 +971,49 @@ class WP_SQLite_Driver {
 			if ( $child instanceof WP_MySQL_Token && WP_MySQL_Lexer::IGNORE_SYMBOL === $child->id ) {
 				// Translate "UPDATE IGNORE" to "UPDATE OR IGNORE".
 				$parts[] = 'OR IGNORE';
+			} elseif ( $child instanceof WP_Parser_Node && 'tableRef' === $child->rule_name ) {
+				$table_name = $this->unquote_sqlite_identifier(
+					$this->translate( $child )
+				);
+				$parts[]    = $this->get_non_strict_view_name( $table_name );
+			} elseif (
+				$child instanceof WP_Parser_Node &&
+				( 'insertFromConstructor' === $child->rule_name || 'insertQueryExpression' === $child->rule_name )
+			) {
+				$fields = $child->get_first_child_node( 'fields' );
+				if ( null !== $fields ) {
+					foreach ( $fields->get_child_nodes() as $field ) {
+						$insert_field_names[] = $this->unquote_sqlite_identifier(
+							$this->translate( $field )
+						);
+					}
+					$extra_field_name          = self::RESERVED_PREFIX . 'fields';
+					$insert_field_names[]      = $extra_field_name;
+					$quoted_insert_field_names = array_map( array( $this, 'quote_sqlite_identifier' ), $insert_field_names );
+					$parts[]                   = '(' . implode( ', ', $quoted_insert_field_names ) . ')';
+
+					$values = 'insertFromConstructor' === $child->rule_name
+						? $child->get_first_child_node( 'insertValues' )
+						: $child->get_first_child_node( 'queryExpressionOrParens' );
+
+					$separator         = '|';
+					$field_names_value = $separator . implode( $separator, $insert_field_names ) . $separator;
+					$parts[]           = "SELECT *, '$field_names_value' AS $extra_field_name FROM (" . $this->translate( $values ) . ') WHERE true';
+				} else {
+					$extra_field_name = self::RESERVED_PREFIX . 'fields';
+					$parts[]          = 'SELECT *, NULL, NULL FROM (' . $this->translate( $child ) . ') WHERE true';
+				}
 			} else {
 				$parts[] = $this->translate( $child );
 			}
 		}
-		$query = implode( ' ', $parts );
+
+		$query         = implode( ' ', $parts );
+		$total_changes = (int) $this->execute_sqlite_query( 'SELECT TOTAL_CHANGES()' )->fetchColumn();
+		var_dump( $query );
 		$this->execute_sqlite_query( $query );
-		$this->set_result_from_affected_rows();
+		$changes = ( (int) $this->execute_sqlite_query( 'SELECT TOTAL_CHANGES()' )->fetchColumn() ) - $total_changes;
+		$this->set_result_from_affected_rows( $changes );
 	}
 
 	/**
@@ -961,6 +1056,16 @@ class WP_SQLite_Driver {
 			if ( $child instanceof WP_MySQL_Token && WP_MySQL_Lexer::IGNORE_SYMBOL === $child->id ) {
 				// Translate "UPDATE IGNORE" to "UPDATE OR IGNORE".
 				$parts[] = 'OR IGNORE';
+				/*} elseif ( $child instanceof WP_Parser_Node && 'tableReferenceList' === $child->rule_name ) {
+				$factor_node = $child->get_first_descendant_node( 'tableFactor' );
+				$ref_node    = $factor_node->get_first_descendant_node( 'tableRef' );
+				$alias_node  = $factor_node->get_first_descendant_node( 'tableAlias' );
+
+				$table_name = $this->unquote_sqlite_identifier( $this->translate( $ref_node ) );
+				$alias      = null === $alias_node
+					? $this->quote_mysql_identifier( $table_name )
+					: $this->unquote_sqlite_identifier( $this->translate( $alias_node ) );
+				$parts[]    = $this->get_non_strict_view_name( $table_name ) . ' AS ' . $alias;*/
 			} else {
 				$parts[] = $this->translate( $child );
 			}
@@ -2540,7 +2645,14 @@ class WP_SQLite_Driver {
 		);
 
 		// 4. Drop the original table.
+		$view_name = $this->get_non_strict_view_name( $table_name );
+
+		//var_dump( $table_name );
+		//$this->execute_sqlite_query( sprintf( 'DROP TRIGGER %s', $view_name . '_insert_trigger') );
+		//$this->execute_sqlite_query( sprintf( 'DROP TRIGGER %s', $view_name . '_update_trigger') );
+		$this->execute_sqlite_query( sprintf( 'DROP VIEW %s', $this->quote_sqlite_identifier( $view_name ) ) );
 		$this->execute_sqlite_query( sprintf( 'DROP TABLE %s', $quoted_table_name ) );
+		//var_dump(' asdfadfasd');
 
 		// 5. Rename the new table to the original table name.
 		$this->execute_sqlite_query(
@@ -2786,7 +2898,20 @@ class WP_SQLite_Driver {
 		);
 		$create_table_query .= implode( ",\n", $rows );
 		$create_table_query .= "\n) STRICT";
-		return array_merge( array( $create_table_query ), $create_index_queries, $on_update_queries );
+
+		// 7. Create a view with triggers for non-strict mode writes to the table.
+		$create_non_strict_view_queries = $this->get_create_view_for_non_strict_mode_queries(
+			$table_is_temporary,
+			$table_name,
+			$column_info
+		);
+
+		return array_merge(
+			array( $create_table_query ),
+			$create_index_queries,
+			$on_update_queries,
+			$create_non_strict_view_queries
+		);
 	}
 
 	/**
@@ -2932,6 +3057,137 @@ class WP_SQLite_Driver {
 		return $sql;
 	}
 
+	/**
+	 * Get SQLite queries to emulate MySQL implicit defaults in non-strict mode.
+	 *
+	 * In MySQL, the behavior of INSERT and UPDATE statements depends on whether
+	 * the STRICT_TRANS_TABLES (InnoDB) or STRICT_ALL_TABLES SQL mode is enabled.
+	 *
+	 * By default, STRICT_TRANS_TABLES is enabled, which makes the InnoDB table
+	 * behavior correspond to the natural behavior of SQLite tables. However,
+	 * some applications, including WordPress, disable strict mode altogether.
+	 *
+	 * The strict SQL modes can be set per session, and can be changed at runtime.
+	 * In SQLite, we can emulate the non-strict behavior with triggers, but since
+	 * we have no way to pass any additional parameters to the triggers, we need
+	 * to redirect non-strict queries to a view, and use view triggers instead.
+	 *
+	 * The non-strict mode emulation is implemented as follows:
+	 *   1. For each table, create a view with all of its columns including rowid.
+	 *   2. Add an extra column to the view to be able to pass a parameter inside.
+	 *      This allows us passing the list of inserted columns to the trigger,
+	 *      to distinguish explicit  NULL values from omitted columns.
+	 *   3. Create an INSTEAD OF INSERT trigger on the view to handle inserts.
+	 *   4. Create an INSTEAD OF UPDATE trigger on the view to handle updates.
+	 *
+	 * Here's a summary of the strict vs. non-strict behaviors in MySQL:
+	 *
+	 * When STRICT_TRANS_TABLES or STRICT_ALL_TABLES is enabled:
+	 *   1. NULL + NO DEFAULT:     No value saves NULL, NULL saves NULL, DEFAULT saves NULL.
+	 *   2. NULL + DEFAULT:        No value saves DEFAULT, NULL saves NULL, DEFAULT saves DEFAULT.
+	 *   3. NOT NULL + NO DEFAULT: No value is rejected, NULL is rejected, DEFAULT is rejected.
+	 *   4. NOT NULL + DEFAULT:    No value saves DEFAULT, NULL is rejected, DEFAULT saves DEFAULT.
+	 *
+	 * When STRICT_TRANS_TABLES and STRICT_ALL_TABLES are disabled:
+	 *   1. NULL + NO DEFAULT:     No value saves NULL, NULL saves NULL, DEFAULT saves NULL.
+	 *   2. NULL + DEFAULT:        No value saves DEFAULT, NULL saves NULL, DEFAULT saves DEFAULT.
+	 *   3. NOT NULL + NO DEFAULT: No value saves IMPLICIT DEFAULT.
+	 *                             NULL is rejected on INSERT, but saves IMPLICIT DEFAULT on UPDATE.
+	 *                             DEFAULT saves IMPLICIT DEFAULT.
+	 *   4. NOT NULL + DEFAULT:    No value saves DEFAULT.
+	 *                             NULL is rejected on INSERT, but saves IMPLICIT DEFAULT on UPDATE.
+	 *                             DEFAULT saves DEFAULT.
+	 *
+	 * For more information about IMPLICIT DEFAULT values in MySQL, see:
+	 *   https://dev.mysql.com/doc/refman/8.4/en/data-type-defaults.html#data-type-defaults-implicit
+	 *
+	 * @param  bool   $table_is_temporary Whether the table is temporary.
+	 * @param  string $table_name         The name of the table to create.
+	 * @param  array  $column_info        The column information.
+	 * @return string[]                   The CREATE VIEW and CREATE TRIGGER queries.
+	 */
+	private function get_create_view_for_non_strict_mode_queries(
+		bool $table_is_temporary,
+		string $table_name,
+		array $column_info
+	): array {
+		$view_name          = $this->get_non_strict_view_name( $table_name );
+		$fields_column_name = $this->get_non_strict_view_fields_column_name();
+		$quoted_table_name  = $this->quote_sqlite_identifier( $table_name );
+
+		// 1. Create a view for non-strict mode writes to the original table.
+		$create_view_query = sprintf(
+			'CREATE %sVIEW %s AS SELECT *, NULL AS %s, rowid FROM %s',
+			$table_is_temporary ? 'TEMPORARY ' : '',
+			$view_name,
+			$fields_column_name,
+			( $table_is_temporary ? 'temp. ' : '' ) . $quoted_table_name
+		);
+
+		// 2. Create an INSTEAD OF INSERT trigger to handle non-strict mode inserts.
+		$insert_trigger_query  = sprintf(
+			'CREATE %sTRIGGER %s INSTEAD OF INSERT ON %s FOR EACH ROW',
+			$table_is_temporary ? 'TEMPORARY ' : '',
+			$view_name . '_insert_trigger',
+			$view_name,
+		);
+		$insert_trigger_query .= ' BEGIN';
+		$insert_trigger_query .= " INSERT INTO $quoted_table_name SELECT";
+		foreach ( $column_info as $i => $column ) {
+			$is_auto_increment = str_contains( $column['EXTRA'], 'auto_increment' );
+			$default           = $column['COLUMN_DEFAULT'];
+			if ( null === $default && 'NO' === $column['IS_NULLABLE'] && ! $is_auto_increment ) {
+				$default = self::DATA_TYPE_IMPLICIT_DEFAULT_MAP[ $column['DATA_TYPE'] ] ?? null;
+			}
+			$insert_trigger_query .= $i > 0 ? ', ' : ' ';
+			$insert_trigger_query .= sprintf(
+				'COALESCE(NEW.%s, IIF(INSTR(NEW.%s, %s), NULL, %s))',
+				$this->quote_sqlite_identifier( $column['COLUMN_NAME'] ),
+				self::RESERVED_PREFIX . 'fields',
+				"'|" . $column['COLUMN_NAME'] . "|'", // TODO: string quoting
+				null === $default ? 'NULL' : "'$default'"
+			);
+		}
+		$insert_trigger_query .= ';';
+		$insert_trigger_query .= ' END';
+
+		// 3. Create an INSTEAD OF UPDATE trigger to handle non-strict mode updates.
+		$update_trigger_query  = sprintf(
+			'CREATE %sTRIGGER %s INSTEAD OF UPDATE ON %s FOR EACH ROW',
+			$table_is_temporary ? 'TEMPORARY ' : '',
+			$view_name . '_update_trigger',
+			$view_name,
+		);
+		$update_trigger_query .= ' BEGIN';
+		$update_trigger_query .= " UPDATE $quoted_table_name SET";
+		foreach ( $column_info as $i => $column ) {
+			$is_auto_increment = str_contains( $column['EXTRA'], 'auto_increment' );
+			$default           = $column['COLUMN_DEFAULT'];
+			if ( null === $default && 'NO' === $column['IS_NULLABLE'] && ! $is_auto_increment ) {
+				$default = self::DATA_TYPE_IMPLICIT_DEFAULT_MAP[ $column['DATA_TYPE'] ] ?? null;
+			}
+			$update_trigger_query .= $i > 0 ? ', ' : ' ';
+			$update_trigger_query .= sprintf(
+				'%s = COALESCE(NEW.%s, %s)',
+				$this->quote_sqlite_identifier( $column['COLUMN_NAME'] ),
+				$this->quote_sqlite_identifier( $column['COLUMN_NAME'] ),
+				null === $default ? 'NULL' : "'$default'"
+			);
+		}
+		$update_trigger_query .= ' WHERE rowid = NEW.rowid;';
+		$update_trigger_query .= ' END';
+		//var_dump( "\n\n" . str_replace( "\r", '|', $insert_trigger_query) );
+
+		return array( $create_view_query, $insert_trigger_query /*$update_trigger_query*/ );
+	}
+
+	private function get_non_strict_view_name( string $table_name ): string {
+		return self::RESERVED_PREFIX . $table_name . '_non_strict';
+	}
+
+	private function get_non_strict_view_fields_column_name(): string {
+		return self::RESERVED_PREFIX . 'fields';
+	}
 
 	/**
 	 * Get an SQLite query to emulate MySQL "ON UPDATE CURRENT_TIMESTAMP".
