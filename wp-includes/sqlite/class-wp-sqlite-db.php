@@ -119,7 +119,13 @@ class WP_SQLite_DB extends wpdb {
 		if ( ! is_scalar( $data ) ) {
 			return '';
 		}
-		$escaped = addslashes( $data );
+		if ( $this->dbh instanceof WP_SQLite_Driver ) {
+			// WP_SQLite_Driver::quote() wraps the escaped string with quotes,
+			// while WPDB expects the string to be escaped without them.
+			$escaped = substr( $this->dbh->quote( $data ), 1, -1 );
+		} else {
+			$escaped = addslashes( $data );
+		}
 		return $this->add_placeholder_escape( $escaped );
 	}
 

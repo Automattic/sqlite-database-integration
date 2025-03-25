@@ -490,6 +490,22 @@ class WP_SQLite_Driver {
 	}
 
 	/**
+	 * Quotes a string for use in a query.
+	 *
+	 * Places quotes around the input string (if required) and escapes special
+	 * characters within the input string. See "PDO::quote()".
+	 *
+	 * @param  string $value The string value to quote.
+	 * @param  int    $type  The type of the parameter. Default is PDO::PARAM_STR.
+	 * @return string        The quoted string.
+	 */
+	public function quote( string $value, int $type = PDO::PARAM_STR ): string {
+		$quoted = addslashes( $value );
+		$quoted = $this->pdo->quote( $value, $type );
+		return $quoted;
+	}
+
+	/**
 	 * Translate and execute a MySQL query in SQLite.
 	 *
 	 * A single MySQL query can be translated into zero or more SQLite queries.
