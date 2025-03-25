@@ -1519,14 +1519,16 @@ class WP_SQLite_Translator {
 
 		if ( $table_name && str_starts_with( strtolower( $table_name ), 'information_schema' ) ) {
 			$this->is_information_schema_query = true;
-			$updated_query                     = preg_replace(
+
+			$database_name = $this->pdo->quote( defined( 'DB_NAME' ) ? DB_NAME : '' );
+			$updated_query = preg_replace(
 				'/' . $table_name . '\.tables/i',
 				/**
 				 * TODO: Return real values for hardcoded column values.
 				 */
 				"(SELECT
 					'def' as TABLE_CATALOG,
-					'database' as TABLE_SCHEMA,
+					$database_name as TABLE_SCHEMA,
 					name as TABLE_NAME,
 					CASE type
 					WHEN 'table' THEN 'BASE TABLE'
