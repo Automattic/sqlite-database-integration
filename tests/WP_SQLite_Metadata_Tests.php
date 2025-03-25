@@ -78,7 +78,7 @@ class WP_SQLite_Metadata_Tests extends TestCase {
 		$this->assertEquals(
 			array(
 				'TABLE_CATALOG'   => 'def',
-				'TABLE_SCHEMA'    => 'database',
+				'TABLE_SCHEMA'    => '',
 				'TABLE_NAME'      => 'wp_options',
 				'TABLE_TYPE'      => 'BASE TABLE',
 				'ENGINE'          => 'InnoDB',
