@@ -53,6 +53,6 @@ if ( ! defined( 'FQDB' ) ) {
 }
 
 // Allow enabling the SQLite AST driver via environment variable.
-if ( ! defined( 'WP_SQLITE_AST_DRIVER' ) && 'true' === $_ENV['WP_SQLITE_AST_DRIVER'] ) {
+if ( ! defined( 'WP_SQLITE_AST_DRIVER' ) && isset( $_ENV['WP_SQLITE_AST_DRIVER'] ) && 'true' === $_ENV['WP_SQLITE_AST_DRIVER'] ) {
 	define( 'WP_SQLITE_AST_DRIVER', true );
 }
