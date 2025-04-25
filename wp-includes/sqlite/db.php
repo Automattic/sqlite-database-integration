@@ -51,6 +51,20 @@ require_once __DIR__ . '/class-wp-sqlite-db.php';
 require_once __DIR__ . '/install-functions.php';
 
 /*
+ * Fallback to a default database name if "DB_NAME" is not defined.
+ *
+ * This can happen when importing a WordPress backup that doesn't include the
+ * "DB_NAME" constant definition.
+ *
+ * TODO: Remove this once addressed in WordPress Playground, which is a more
+ *       appropriate place to fix this. In the SQLite integration plugin, it is
+ *       better to require the "DB_NAME" constant to be defined to avoid issues
+ *       such as storing an incorrect database name in the information schema.
+ */
+// phpcs:ignore WordPress.WP.CapitalPDangit.MisspelledInText
+$db_name = defined( 'DB_NAME' ) ? DB_NAME : 'wordpress';
+
+/*
  * Debug: Cross-check with MySQL.
  * This is for debugging purpose only and requires files
  * that are present in the GitHub repository
@@ -59,7 +73,9 @@ require_once __DIR__ . '/install-functions.php';
 $crosscheck_tests_file_path = dirname( __DIR__, 2 ) . '/tests/class-wp-sqlite-crosscheck-db.php';
 if ( defined( 'SQLITE_DEBUG_CROSSCHECK' ) && SQLITE_DEBUG_CROSSCHECK && file_exists( $crosscheck_tests_file_path ) ) {
 	require_once $crosscheck_tests_file_path;
-	$GLOBALS['wpdb'] = new WP_SQLite_Crosscheck_DB( DB_NAME );
+	$GLOBALS['wpdb'] = new WP_SQLite_Crosscheck_DB( $db_name );
 } else {
-	$GLOBALS['wpdb'] = new WP_SQLite_DB( DB_NAME );
+	$GLOBALS['wpdb'] = new WP_SQLite_DB( $db_name );
 }
+
+unset( $db_name );
