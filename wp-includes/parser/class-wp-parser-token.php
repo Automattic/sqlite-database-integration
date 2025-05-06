@@ -58,11 +58,20 @@ class WP_Parser_Token {
 	}
 
 	/**
-	 * Get the token value as raw bytes from the input.
+	 * Get the raw bytes of the token from the input.
+	 *
+	 * @return string The token bytes.
+	 */
+	public function get_bytes(): string {
+		return substr( $this->input, $this->start, $this->length );
+	}
+
+	/**
+	 * Get the real unquoted value of the token.
 	 *
 	 * @return string The token value.
 	 */
 	public function get_value(): string {
-		return substr( $this->input, $this->start, $this->length );
+		return $this->get_bytes();
 	}
 }

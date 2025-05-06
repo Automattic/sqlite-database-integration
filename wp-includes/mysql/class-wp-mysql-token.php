@@ -25,6 +25,114 @@ class WP_MySQL_Token extends WP_Parser_Token {
 	}
 
 	/**
+	 * Get the real unquoted value of the token.
+	 *
+	 * @return string The token value.
+	 */
+	public function get_value(): string {
+		$value = $this->get_bytes();
+		if (
+			WP_MySQL_Lexer::SINGLE_QUOTED_TEXT === $this->id
+			|| WP_MySQL_Lexer::DOUBLE_QUOTED_TEXT === $this->id
+			|| WP_MySQL_Lexer::BACK_TICK_QUOTED_ID === $this->id
+		) {
+			// Remove bounding quotes.
+			$quote = $value[0];
+			$value = substr( $value, 1, -1 );
+
+			/**
+			 * Unescape MySQL escape sequences.
+			 *
+			 * MySQL string literals use backslash as an escape character, and
+			 * the string bounding quotes can also be escaped by being doubled.
+			 *
+			 * The escaping is done according to the following rules:
+			 *
+			 *   1. Some special character escape sequences are recognized.
+			 *      For example, "\n" is a newline character, "\0" is ASCII NULL.
+			 *   2. A specific treatment is applied to "\%" and "\_" sequences.
+			 *      This is due to their special meaning for pattern matching.
+			 *   3. Other backslash-prefixed characters resolve to their literal
+			 *      values. For example, "\x" represents "x", "\\" represents "\".
+			 *
+			 * Despite looking similar, these rules are different from the C-style
+			 * string escaping, so we cannot use "strip(c)slashes()" in this case.
+			 *
+			 * @TODO: Handle NO_BACKSLASH_ESCAPES SQL mode.
+			 *
+			 * See: https://dev.mysql.com/doc/refman/8.4/en/string-literals.html
+			 */
+			$replacements = array(
+				/*
+				 * MySQL special character escape sequences.
+				 */
+				'\0'   => chr( 0 ),  // An ASCII NULL (X'00') character.
+				"\'"   => "'",       // A single quote (') character.
+				'\"'   => '"',       // A double quote (") character.
+				'\b'   => chr( 8 ),  // A backspace character.
+				'\n'   => "\n",      // A newline (linefeed) character.
+				'\r'   => "\r",      // A carriage return character.
+				'\t'   => "\t",      // A tab character.
+				'\Z'   => chr( 26 ), // An ASCII 26 (Control+Z) character.
+
+				/*
+				 * Normalize escaping of "%" and "_" characters.
+				 *
+				 * MySQL has unusual handling for "\%" and "\_" in all string literals.
+				 * While other sequences follow the C-style escaping ("\?" is "?", etc.),
+				 * "\%" resolves to "\%" and "\_" resolves to "\_" (unlike in C strings).
+				 *
+				 * This means that "\%" behaves like "\\%", and "\_" behaves like "\\_".
+				 * To preserve this behavior, we need to add a second backslash here.
+				 *
+				 * From https://dev.mysql.com/doc/refman/8.4/en/string-literals.html:
+				 *   > The \% and \_ sequences are used to search for literal instances
+				 *   > of % and _ in pattern-matching contexts where they would otherwise
+				 *   > be interpreted as wildcard characters. If you use \% or \_ outside
+				 *   > of pattern-matching contexts, they evaluate to the strings \% and
+				 *   > \_, not to % and _.
+				 */
+				'\%'   => '\\\\%',
+				'\_'   => '\\\\_',
+
+				/*
+				 * Preserve a double backslash as-is, so that the trailing backslash
+				 * is not consumed as the beginning of an escape sequence like "\n".
+				 *
+				 * Resolving "\\" to "\" will be handled in the next step, where all
+				 * other backslash-prefixed characters resolve to their literal values.
+				 */
+				'\\\\' => '\\\\',
+
+				/*
+				 * The bounding quotes can also be escaped by being doubled.
+				 */
+				$quote . $quote
+					=> $quote,
+			);
+
+			/*
+			 * Apply the replacements.
+			 *
+			 * It is important to use "strtr()" and not "str_replace()", because
+			 * "str_replace()" applies replacements one after another, modifying
+			 * intermediate changes rather than just the original string:
+			 *
+			 *   - str_replace( [ 'a', 'b' ], [ 'b', 'c' ], 'ab' ); // 'cc' (bad)
+			 *   - strtr( 'ab', [ 'a' => 'b', 'b' => 'c' ] );       // 'bc' (good)
+			 */
+			$value = strtr( $value, $replacements );
+
+			/*
+			 * A backslash with any other character represents the character itself.
+			 * That is, \x evaluates to x, \\ evaluates to \, and \🙂 evaluates to 🙂.
+			 */
+			$value = preg_replace( '/\\\\(.)/u', '$1', $value );
+		}
+		return $value;
+	}
+
+	/**
 	 * Get the token representation as a string.
 	 *
 	 * This method is intended to be used only for testing and debugging purposes,

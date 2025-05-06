@@ -2294,45 +2294,7 @@ class WP_SQLite_Driver {
 	 */
 	private function translate_string_literal( WP_Parser_Node $node ): string {
 		$token = $node->get_first_child_token();
-
-		/*
-		 * 1. Remove bounding quotes.
-		 */
-		$quote = $token->get_value()[0];
-		$value = substr( $token->get_value(), 1, -1 );
-
-		/*
-		 * 2. Normalize escaping of "%" and "_" characters.
-		 *
-		 * MySQL has unusual handling for "\%" and "\_" in all string literals.
-		 * While other sequences follow the C-style escaping ("\?" is "?", etc.),
-		 * "\%" resolves to "\%" and "\_" resolves to "\_" (unlike in C strings).
-		 *
-		 * This means that "\%" behaves like "\\%", and "\_" behaves like "\\_".
-		 * To preserve this behavior, we need to add a second backslash in cases
-		 * where only one is used. To do so correctly, we need to:
-		 *
-		 *  1. Skip all double backslash patterns (as "\\" resolves to "\").
-		 *  2. Add an extra backslash when "\%" or "\_" follows right after.
-		 *
-		 * This may be related to: https://bugs.mysql.com/bug.php?id=84118
-		 */
-		$value = preg_replace( '/(^|[^\\\\](?:\\\\{2}))*(\\\\[%_])/', '$1\\\\$2', $value );
-
-		/*
-		 * 3. Unescape quotes within the string.
-		 */
-		$value = str_replace( $quote . $quote, $quote, $value );
-
-		/*
-		 * 4. Unescape C-style escape sequences.
-		 *
-		 * MySQL string literals are represented using C-style encoded strings,
-		 * but SQLite doesn't support such escaping.
-		 *
-		 * @TODO: Handle NO_BACKSLASH_ESCAPES SQL mode.
-		 */
-		$value = stripcslashes( $value );
+		$value = $token->get_value();
 
 		/*
 		 * 5. Translate datetime literals.
@@ -2383,17 +2345,7 @@ class WP_SQLite_Driver {
 	 */
 	private function translate_pure_identifier( WP_Parser_Node $node ): string {
 		$token = $node->get_first_child_token();
-
-		if ( WP_MySQL_Lexer::DOUBLE_QUOTED_TEXT === $token->id ) {
-			$value = substr( $token->get_value(), 1, -1 );
-			$value = str_replace( '""', '"', $value );
-		} elseif ( WP_MySQL_Lexer::BACK_TICK_QUOTED_ID === $token->id ) {
-			$value = substr( $token->get_value(), 1, -1 );
-			$value = str_replace( '``', '`', $value );
-		} else {
-			$value = $token->get_value();
-		}
-
+		$value = $token->get_value();
 		return '`' . str_replace( '`', '``', $value ) . '`';
 	}
 
