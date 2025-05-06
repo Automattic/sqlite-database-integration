@@ -455,6 +455,7 @@ class WP_SQLite_Information_Schema_Builder {
 		$table_engine     = $this->get_table_engine( $node );
 		$table_row_format = 'MyISAM' === $table_engine ? 'Fixed' : 'Dynamic';
 		$table_collation  = $this->get_table_collation( $node );
+		$table_comment    = $this->get_table_comment( $node );
 
 		/*
 		 * When creating a temporary table:
@@ -476,6 +477,7 @@ class WP_SQLite_Information_Schema_Builder {
 			'engine'          => $table_engine,
 			'row_format'      => $table_row_format,
 			'table_collation' => $table_collation,
+			'table_comment'   => $table_comment,
 		);
 
 		try {
@@ -957,11 +959,11 @@ class WP_SQLite_Information_Schema_Builder {
 		$first_column_type  = $column_info_map[ $first_column_name ]['DATA_TYPE'] ?? null;
 		$has_spatial_column = null !== $first_column_type && $this->is_spatial_data_type( $first_column_type );
 
-		$non_unique = $this->get_index_non_unique( $keyword );
-		$index_name = $this->get_index_name( $node );
-		$index_type = $this->get_index_type( $node, $keyword, $has_spatial_column );
-
-		$seq_in_index = 1;
+		$non_unique    = $this->get_index_non_unique( $keyword );
+		$index_name    = $this->get_index_name( $node );
+		$index_type    = $this->get_index_type( $node, $keyword, $has_spatial_column );
+		$index_comment = $this->get_index_comment( $node );
+		$seq_in_index  = 1;
 		foreach ( $key_parts as $i => $key_part ) {
 			$column_name = $key_part_column_names[ $i ];
 			$collation   = $this->get_index_column_collation( $key_part, $index_type );
@@ -995,7 +997,7 @@ class WP_SQLite_Information_Schema_Builder {
 				'nullable'      => $nullable,
 				'index_type'    => $index_type,
 				'comment'       => '', // not implemented
-				'index_comment' => '', // @TODO
+				'index_comment' => $index_comment,
 				'is_visible'    => 'YES', // @TODO: Save actual visibility value.
 				'expression'    => null, // @TODO
 			);
@@ -1188,6 +1190,21 @@ class WP_SQLite_Information_Schema_Builder {
 			return 'utf8mb4_general_ci';
 		}
 		return strtolower( $this->get_value( $collate_node ) );
+	}
+
+	/**
+	 * Extract table comment from the "createStatement" AST node.
+	 *
+	 * @param  WP_Parser_Node $node The "createStatement" AST node with "createTable" child.
+	 * @return string               The table comment as stored in information schema.
+	 */
+	private function get_table_comment( WP_Parser_Node $node ): string {
+		foreach ( $node->get_descendant_nodes( 'createTableOption' ) as $attr ) {
+			if ( $attr->has_child_token( WP_MySQL_Lexer::COMMENT_SYMBOL ) ) {
+				return $this->get_value( $attr->get_first_child_node( 'textStringLiteral' ) );
+			}
+		}
+		return '';
 	}
 
 	/**
@@ -1809,6 +1826,21 @@ class WP_SQLite_Information_Schema_Builder {
 		}
 
 		return 'BTREE';
+	}
+
+	/**
+	 * Extract index comment from the "tableConstraintDef" AST node.
+	 *
+	 * @param  WP_Parser_Node $node The "tableConstraintDef" AST node.
+	 * @return string               The index comment as stored in information schema.
+	 */
+	public function get_index_comment( WP_Parser_Node $node ): string {
+		foreach ( $node->get_descendant_nodes( 'commonIndexOption' ) as $attr ) {
+			if ( $attr->has_child_token( WP_MySQL_Lexer::COMMENT_SYMBOL ) ) {
+				return $this->get_value( $attr->get_first_child_node( 'textLiteral' ) );
+			}
+		}
+		return '';
 	}
 
 	/**

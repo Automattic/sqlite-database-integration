@@ -3402,6 +3402,13 @@ class WP_SQLite_Driver {
 				$sql .= ' ON UPDATE CURRENT_TIMESTAMP';
 			}
 
+			if ( '' !== $column['COLUMN_COMMENT'] ) {
+				$sql .= sprintf(
+					' COMMENT %s',
+					$this->quote_mysql_utf8_string_literal( $column['COLUMN_COMMENT'] )
+				);
+			}
+
 			$rows[] = $sql;
 		}
 
@@ -3411,8 +3418,8 @@ class WP_SQLite_Driver {
 			$info = $constraint[1];
 
 			if ( 'PRIMARY' === $info['INDEX_NAME'] ) {
-				$sql    = '  PRIMARY KEY (';
-				$sql   .= implode(
+				$sql  = '  PRIMARY KEY (';
+				$sql .= implode(
 					', ',
 					array_map(
 						function ( $column ) {
@@ -3421,8 +3428,7 @@ class WP_SQLite_Driver {
 						$constraint
 					)
 				);
-				$sql   .= ')';
-				$rows[] = $sql;
+				$sql .= ')';
 			} else {
 				$is_unique = '0' === $info['NON_UNIQUE'];
 
@@ -3448,9 +3454,16 @@ class WP_SQLite_Driver {
 					)
 				);
 				$sql .= ')';
-
-				$rows[] = $sql;
 			}
+
+			if ( '' !== $info['INDEX_COMMENT'] ) {
+				$sql .= sprintf(
+					' COMMENT %s',
+					$this->quote_mysql_utf8_string_literal( $info['INDEX_COMMENT'] )
+				);
+			}
+
+			$rows[] = $sql;
 		}
 
 		// 5. Compose the CREATE TABLE statement.
@@ -3467,6 +3480,12 @@ class WP_SQLite_Driver {
 		$sql .= sprintf( ' ENGINE=%s', $table_info['ENGINE'] );
 		$sql .= sprintf( ' DEFAULT CHARSET=%s', $charset );
 		$sql .= sprintf( ' COLLATE=%s', $collation );
+		if ( '' !== $table_info['TABLE_COMMENT'] ) {
+			$sql .= sprintf(
+				' COMMENT=%s',
+				$this->quote_mysql_utf8_string_literal( $table_info['TABLE_COMMENT'] )
+			);
+		}
 		return $sql;
 	}
 

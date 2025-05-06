@@ -343,6 +343,59 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		);
 	}
 
+	public function testShowCreateTableWithComments(): void {
+		$this->assertQuery(
+			"CREATE TABLE _tmp_table (
+				id INT NOT NULL COMMENT 'Column 1 comment',
+				name VARCHAR(255) NULL DEFAULT 'test' COMMENT 'Column 2 comment',
+				special_chars_1 TEXT NOT NULL COMMENT '\'',
+				special_chars_2 TEXT NOT NULL COMMENT '''',
+				special_chars_3 TEXT NOT NULL COMMENT '\"',
+				special_chars_4 TEXT NOT NULL COMMENT '\\\"',
+				special_chars_5 TEXT NOT NULL COMMENT '`',
+				special_chars_6 TEXT NOT NULL COMMENT '\0',
+				special_chars_7 TEXT NOT NULL COMMENT '\n',
+				special_chars_8 TEXT NOT NULL COMMENT '\r',
+				special_chars_9 TEXT NOT NULL COMMENT '\t',
+				special_chars_10 TEXT NOT NULL COMMENT '\032',
+				special_chars_11 TEXT NOT NULL COMMENT '\\\\',
+				special_chars_12 TEXT NOT NULL COMMENT '🙂',
+				special_chars_13 TEXT NOT NULL COMMENT '\🙂',
+				INDEX idx_id (id) COMMENT 'Index comment'
+			) COMMENT='Table comment'"
+		);
+
+		$results = $this->assertQuery(
+			'SHOW CREATE TABLE _tmp_table;'
+		);
+		$this->assertSame(
+			implode(
+				"\n",
+				array(
+					'CREATE TABLE `_tmp_table` (',
+					"  `id` int NOT NULL COMMENT 'Column 1 comment',",
+					"  `name` varchar(255) DEFAULT 'test' COMMENT 'Column 2 comment',",
+					"  `special_chars_1` text NOT NULL COMMENT '''',",
+					"  `special_chars_2` text NOT NULL COMMENT '''',",
+					"  `special_chars_3` text NOT NULL COMMENT '\"',",
+					"  `special_chars_4` text NOT NULL COMMENT '\"',",
+					"  `special_chars_5` text NOT NULL COMMENT '`',",
+					"  `special_chars_6` text NOT NULL COMMENT '\\0',",
+					"  `special_chars_7` text NOT NULL COMMENT '\\n',",
+					"  `special_chars_8` text NOT NULL COMMENT '\\r',",
+					"  `special_chars_9` text NOT NULL COMMENT '	',",
+					"  `special_chars_10` text NOT NULL COMMENT '" . chr( 26 ) . "',",
+					"  `special_chars_11` text NOT NULL COMMENT '\\\\',",
+					"  `special_chars_12` text NOT NULL COMMENT '🙂',",
+					"  `special_chars_13` text NOT NULL COMMENT '🙂',",
+					"  KEY `idx_id` (`id`) COMMENT 'Index comment'",
+					") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Table comment'",
+				)
+			),
+			$results[0]->{'Create Table'}
+		);
+	}
+
 	public function testCreateTablesWithIdenticalIndexNames() {
 		$this->assertQuery(
 			"CREATE TABLE _tmp_table_a (
