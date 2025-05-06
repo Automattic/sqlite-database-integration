@@ -429,26 +429,59 @@ class WP_SQLite_Driver_Tests extends TestCase {
 		);
 	}
 
-	public function testShowCreateTableWithCorrectDefaultValues() {
+	public function testShowCreateTableWithDefaultValues(): void {
 		$this->assertQuery(
 			"CREATE TABLE _tmp__table (
-					ID BIGINT PRIMARY KEY AUTO_INCREMENT NOT NULL,
-					default_empty_string VARCHAR(255) default '',
-					null_no_default VARCHAR(255)
-				);"
+				ID BIGINT PRIMARY KEY AUTO_INCREMENT NOT NULL,
+				no_default VARCHAR(255),
+				default_zero INT DEFAULT 0,
+				default_empty_string VARCHAR(255) DEFAULT '',
+				special_chars_1 TEXT NOT NULL COMMENT '\'',
+				special_chars_2 TEXT NOT NULL COMMENT '''',
+				special_chars_3 TEXT NOT NULL COMMENT '\"',
+				special_chars_4 TEXT NOT NULL COMMENT '\\\"',
+				special_chars_5 TEXT NOT NULL COMMENT '`',
+				special_chars_6 TEXT NOT NULL COMMENT '\0',
+				special_chars_7 TEXT NOT NULL COMMENT '\n',
+				special_chars_8 TEXT NOT NULL COMMENT '\r',
+				special_chars_9 TEXT NOT NULL COMMENT '\t',
+				special_chars_10 TEXT NOT NULL COMMENT '\032',
+				special_chars_11 TEXT NOT NULL COMMENT '\\\\',
+				special_chars_12 TEXT NOT NULL COMMENT '🙂',
+				special_chars_13 TEXT NOT NULL COMMENT '\🙂'
+			)"
 		);
 
 		$this->assertQuery(
 			'SHOW CREATE TABLE _tmp__table;'
 		);
 		$results = $this->engine->get_query_results();
-		$this->assertEquals(
-			'CREATE TABLE `_tmp__table` (
-  `ID` bigint NOT NULL AUTO_INCREMENT,
-  `default_empty_string` varchar(255) DEFAULT \'\',
-  `null_no_default` varchar(255) DEFAULT NULL,
-  PRIMARY KEY (`ID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci',
+		$this->assertSame(
+			implode(
+				"\n",
+				array(
+					'CREATE TABLE `_tmp__table` (',
+					'  `ID` bigint NOT NULL AUTO_INCREMENT,',
+					'  `no_default` varchar(255) DEFAULT NULL,',
+					"  `default_zero` int DEFAULT '0',",
+					"  `default_empty_string` varchar(255) DEFAULT '',",
+					"  `special_chars_1` text NOT NULL COMMENT '''',",
+					"  `special_chars_2` text NOT NULL COMMENT '''',",
+					"  `special_chars_3` text NOT NULL COMMENT '\"',",
+					"  `special_chars_4` text NOT NULL COMMENT '\"',",
+					"  `special_chars_5` text NOT NULL COMMENT '`',",
+					"  `special_chars_6` text NOT NULL COMMENT '\\0',",
+					"  `special_chars_7` text NOT NULL COMMENT '\\n',",
+					"  `special_chars_8` text NOT NULL COMMENT '\\r',",
+					"  `special_chars_9` text NOT NULL COMMENT '	',",
+					"  `special_chars_10` text NOT NULL COMMENT '" . chr( 26 ) . "',",
+					"  `special_chars_11` text NOT NULL COMMENT '\\\\',",
+					"  `special_chars_12` text NOT NULL COMMENT '🙂',",
+					"  `special_chars_13` text NOT NULL COMMENT '🙂',",
+					'  PRIMARY KEY (`ID`)',
+					') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci',
+				)
+			),
 			$results[0]->{'Create Table'}
 		);
 	}

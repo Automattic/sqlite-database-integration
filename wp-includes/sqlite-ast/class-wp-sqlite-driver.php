@@ -3392,7 +3392,7 @@ class WP_SQLite_Driver {
 			) {
 				$sql .= ' DEFAULT CURRENT_TIMESTAMP';
 			} elseif ( null !== $column['COLUMN_DEFAULT'] ) {
-				$sql .= ' DEFAULT ' . $this->connection->quote( $column['COLUMN_DEFAULT'] );
+				$sql .= ' DEFAULT ' . $this->quote_mysql_utf8_string_literal( $column['COLUMN_DEFAULT'] );
 			} elseif ( 'YES' === $column['IS_NULLABLE'] ) {
 				$sql .= ' DEFAULT NULL';
 			}
@@ -3528,7 +3528,6 @@ class WP_SQLite_Driver {
 		return $this->connection->quote_identifier( $unquoted_identifier );
 	}
 
-
 	/**
 	 * Quote a MySQL identifier.
 	 *
@@ -3539,6 +3538,52 @@ class WP_SQLite_Driver {
 	 */
 	private function quote_mysql_identifier( string $unquoted_identifier ): string {
 		return '`' . str_replace( '`', '``', $unquoted_identifier ) . '`';
+	}
+
+	/**
+	 * Format a MySQL string literal for output in a CREATE TABLE statement.
+	 *
+	 * We expect UTF-8 strings coming from SQLite. The only characters that must
+	 * be escaped in a single-quoted string for a UTF-8 MySQL dump are ' and \.
+	 *
+	 * MySQL SHOW CREATE TABLE command additionally escapes "\0", "\n", and "\r",
+	 * for the mysql CLI, logs, and better readability. This applies to column
+	 * default values, and table, column, and index comments. Other values, such
+	 * as identifiers, don't have these extra characters escaped in the output.
+	 *
+	 * See:
+	 *  - https://github.com/mysql/mysql-server/blob/ff05628a530696bc6851ba6540ac250c7a059aa7/sql/sql_show.cc#L1799
+	 *  - https://github.com/mysql/mysql-server/blob/ff05628a530696bc6851ba6540ac250c7a059aa7/sql/table.cc#L3525
+	 *
+	 * Unfortunately, SQLite doesn't validate the UTF-8 encoding, so other byte
+	 * sequences may come from SQLite as well: https://www.sqlite.org/invalidutf.html
+	 *
+	 * TODO: We may consider stripping invalid UTF-8 characters, but that's likely
+	 *       to be a bigger project, as these can appear also in other contexts.
+	 *
+	 * @param  string $literal The string literal to escape.
+	 * @return string          The escaped string literal.
+	 */
+	private function quote_mysql_utf8_string_literal( string $literal ): string {
+		/*
+		 * We can't use "addcslashes()" here, because it has an unusual handling
+		 * of the ASCII NULL character, escaping it to "\000" instead of "\0".
+		 *
+		 * It is important to use "strtr()" and not "str_replace()", because
+		 * "str_replace()" applies replacements one after another, modifying
+		 * intermediate changes rather than just the original string:
+		 *
+		 *   - str_replace( [ 'a', 'b' ], [ 'b', 'c' ], 'ab' ); // 'cc' (bad)
+		 *   - strtr( 'ab', [ 'a' => 'b', 'b' => 'c' ] );       // 'bc' (good)
+		 */
+		$replacements = array(
+			"'"  => "''",
+			'\\' => '\\\\',
+			"\0" => '\0',
+			"\n" => '\n',
+			"\r" => '\r',
+		);
+		return "'" . strtr( $literal, $replacements ) . "'";
 	}
 
 	/**
