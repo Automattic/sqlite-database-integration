@@ -4703,4 +4703,233 @@ QUERY
 		$this->assertSame( "SQLSTATE[42000]: Syntax error or access violation: 1061 Duplicate key name 'idx'", $exception->getMessage() );
 		$this->assertSame( '42S21', $exception->getCode() );
 	}
+
+	public function testNoBackslashEscapesSqlMode(): void {
+		$backslash = chr( 92 );
+
+		$query = "SELECT
+			''''                       AS value_1,
+			'{$backslash}\"'           AS value_2,
+			'{$backslash}0'            AS value_3,
+			'{$backslash}n'            AS value_4,
+			'{$backslash}r'            AS value_5,
+			'{$backslash}t'            AS value_6,
+			'{$backslash}b'            AS value_7,
+			'{$backslash}{$backslash}' AS value_8,
+			'🙂'                        AS value_9,
+			'{$backslash}🙂'            AS value_10,
+			'{$backslash}%'            AS value_11,
+			'{$backslash}_'            AS value_12
+		";
+
+		// With NO_BACKSLASH_ESCAPES disabled:
+		$this->assertQuery( "SET SESSION sql_mode = ''" );
+		$result = $this->assertQuery( $query );
+		$this->assertSame( chr( 39 ), $result[0]->value_1 ); // single quote
+		$this->assertSame( chr( 34 ), $result[0]->value_2 ); // double quote
+		$this->assertSame( chr( 0 ), $result[0]->value_3 );  // ASCII NULL
+		$this->assertSame( chr( 10 ), $result[0]->value_4 ); // newline
+		$this->assertSame( chr( 13 ), $result[0]->value_5 ); // carriage return
+		$this->assertSame( chr( 9 ), $result[0]->value_6 );  // tab
+		$this->assertSame( chr( 8 ), $result[0]->value_7 );  // backspace
+		$this->assertSame( chr( 92 ), $result[0]->value_8 ); // backslash
+		$this->assertSame( '🙂', $result[0]->value_9 );
+		$this->assertSame( '🙂', $result[0]->value_10 );
+
+		// Characters "%" and "_" follow special escaping rules. Escape sequences
+		// "\%" and "\_" preserve the backslash so it can be used in some contexts.
+		$this->assertSame( $backslash . '%', $result[0]->value_11 );
+		$this->assertSame( $backslash . '_', $result[0]->value_12 );
+
+		// With NO_BACKSLASH_ESCAPES enabled:
+		$this->assertQuery( "SET SESSION sql_mode = 'NO_BACKSLASH_ESCAPES'" );
+		$result = $this->assertQuery( $query );
+		$this->assertSame( "'", $result[0]->value_1 );
+		$this->assertSame( $backslash . '"', $result[0]->value_2 );
+		$this->assertSame( $backslash . '0', $result[0]->value_3 );
+		$this->assertSame( $backslash . 'n', $result[0]->value_4 );
+		$this->assertSame( $backslash . 'r', $result[0]->value_5 );
+		$this->assertSame( $backslash . 't', $result[0]->value_6 );
+		$this->assertSame( $backslash . 'b', $result[0]->value_7 );
+		$this->assertSame( $backslash . $backslash, $result[0]->value_8 );
+		$this->assertSame( '🙂', $result[0]->value_9 );
+		$this->assertSame( $backslash . '🙂', $result[0]->value_10 );
+		$this->assertSame( $backslash . '%', $result[0]->value_11 );
+		$this->assertSame( $backslash . '_', $result[0]->value_12 );
+	}
+
+	public function testNoBackslashEscapesSqlModeWithPatternMatching(): void {
+		$backslash = chr( 92 );
+
+		$this->assertQuery( 'CREATE TABLE t (id INT PRIMARY KEY AUTO_INCREMENT, value TEXT)' );
+		$this->assertQuery( "INSERT INTO t (value) VALUES ('abc')" );
+		$this->assertQuery( "INSERT INTO t (value) VALUES ('abc_')" );
+		$this->assertQuery( "INSERT INTO t (value) VALUES ('abc%')" );
+		$this->assertQuery( "INSERT INTO t (value) VALUES ('abc{$backslash}{$backslash}x')" ); // abc\x
+
+		/*
+		 * 1. With NO_BACKSLASH_ESCAPES disabled:
+		 *
+		 * Backslashes serve as special escape characters on two levels:
+		 *
+		 *   1. In MySQL string literals.
+		 *   2. In LIKE patterns.
+		 *
+		 * Additionally, "\_" and "\%" sequences preserve the backslash in MySQL
+		 * string literals, making them equivalent to "\\_" and "\\%" sequences.
+		 *
+		 * Here's what that does to some escape sequences:
+		 *
+		 *   "\_"
+		 *      1) String literal resolves to:   "\_" sequence
+		 *      2) Pattern matching resolves to: "_" character
+		 *
+		 *   "\\_"
+		 *      1) String literal resolves to:   "\_" sequence
+		 *      2) Pattern matching resolves to: "_" character
+		 *
+		 *   "\\\_"
+		 *      1) String literal resolves to:   "\\_" sequence
+		 *      2) Pattern matching resolves to: "\" character + "_" wildcard
+		 *
+		 *   "\\\\_"
+		 *      1) String literal resolves to:   "\\_" sequence
+		 *      2) Pattern matching resolves to: "\" character + "_" wildcard
+		 *
+		 * The same rules applies to the "%" character.
+		 */
+		$this->assertQuery( "SET SESSION sql_mode = ''" );
+
+		// A "_" = a wildcard:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc_' ORDER BY id" );
+		$this->assertCount( 2, $result );
+		$this->assertSame( 'abc_', $result[0]->value );
+		$this->assertSame( 'abc%', $result[1]->value );
+
+		// A "\_" sequence = the "_" character:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}_'" );
+		$this->assertCount( 1, $result );
+		$this->assertSame( 'abc_', $result[0]->value );
+
+		// A "\\_" sequence = the "_" character:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}{$backslash}_'" );
+		$this->assertCount( 1, $result );
+		$this->assertSame( 'abc_', $result[0]->value );
+
+		// A "\\\_" sequence = the "\" character and a wildcard:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}{$backslash}{$backslash}_'" );
+		$this->assertCount( 1, $result );
+		$this->assertSame( "abc{$backslash}x", $result[0]->value );
+
+		// A "\\\\_" sequence = the "\" character and a wildcard:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}{$backslash}{$backslash}{$backslash}_'" );
+		$this->assertCount( 1, $result );
+		$this->assertSame( "abc{$backslash}x", $result[0]->value );
+
+		// A "\\\\\_" sequence = the "\" character and the "_" character:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}{$backslash}{$backslash}{$backslash}{$backslash}_'" );
+		$this->assertCount( 0, $result );
+
+		// A "%" = a wildcard:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc%' ORDER BY id" );
+		$this->assertCount( 4, $result );
+		$this->assertSame( 'abc', $result[0]->value );
+		$this->assertSame( 'abc_', $result[1]->value );
+		$this->assertSame( 'abc%', $result[2]->value );
+		$this->assertSame( "abc{$backslash}x", $result[3]->value );
+
+		// A "\%" sequence = the "%" character:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}%'" );
+		$this->assertCount( 1, $result );
+		$this->assertSame( 'abc%', $result[0]->value );
+
+		// A "\\%" sequence = the "%" character:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}{$backslash}%'" );
+		$this->assertCount( 1, $result );
+		$this->assertSame( 'abc%', $result[0]->value );
+
+		// A "\\\%" sequence = the "\" character and a wildcard:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}{$backslash}{$backslash}%'" );
+		$this->assertCount( 1, $result );
+		$this->assertSame( "abc{$backslash}x", $result[0]->value );
+
+		// A "\\\\%" sequence = the "\" character and a wildcard:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}{$backslash}{$backslash}{$backslash}%'" );
+		$this->assertCount( 1, $result );
+		$this->assertSame( "abc{$backslash}x", $result[0]->value );
+
+		// A "\\\\\%" sequence = the "\" character and the "%" character:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}{$backslash}{$backslash}{$backslash}{$backslash}%'" );
+		$this->assertCount( 0, $result );
+
+		// A "\x" sequence = the "x" character:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}x'" );
+		$this->assertCount( 0, $result );
+
+		// A "\\x" sequence = the "x" character:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}{$backslash}x'" );
+		$this->assertCount( 0, $result );
+
+		// A "\\\x" sequence = the "x" character:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}{$backslash}{$backslash}x'" );
+		$this->assertCount( 0, $result );
+
+		// A "\\\\x" sequence = the "\" character and the "x" character:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}{$backslash}{$backslash}{$backslash}x'" );
+		$this->assertCount( 1, $result );
+		$this->assertSame( "abc{$backslash}x", $result[0]->value );
+
+		/*
+		 * 2. With NO_BACKSLASH_ESCAPES enabled:
+		 *
+		 * Backslashes don't serve as special escape characters at all:
+		 *
+		 *   1. No special meaning in MySQL string literals.
+		 *   2. No special meaning in LIKE patterns.
+		 *      This can be overriden using the "ESCAPE ..." clause of the LIKE
+		 *      expression. This is not implemented in the SQLite driver yet.
+		 */
+		$this->assertQuery( "SET SESSION sql_mode = 'NO_BACKSLASH_ESCAPES'" );
+
+		// A "_" = a wildcard:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc_' ORDER BY id" );
+		$this->assertCount( 2, $result );
+		$this->assertSame( 'abc_', $result[0]->value );
+		$this->assertSame( 'abc%', $result[1]->value );
+
+		// A "\_" sequence = the "\" character and a wildcard:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}_'" );
+		$this->assertCount( 1, $result );
+		$this->assertSame( "abc{$backslash}x", $result[0]->value );
+
+		// A "\\_" sequence = two "\" characters and a wildcard:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}{$backslash}_'" );
+		$this->assertCount( 0, $result );
+
+		// A "%" = a wildcard:
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc%' ORDER BY id" );
+		$this->assertCount( 4, $result );
+		$this->assertSame( 'abc', $result[0]->value );
+		$this->assertSame( 'abc_', $result[1]->value );
+		$this->assertSame( 'abc%', $result[2]->value );
+		$this->assertSame( "abc{$backslash}x", $result[3]->value );
+
+		// A "\%" sequence = the "\" character and a wildcard.
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}%'" );
+		$this->assertCount( 1, $result );
+		$this->assertSame( "abc{$backslash}x", $result[0]->value );
+
+		// A "\\%" sequence = two "\" characters and a wildcard.
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}{$backslash}%'" );
+		$this->assertCount( 0, $result );
+
+		// A "\x" sequence = the "\" and the "x" character.
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}x'" );
+		$this->assertCount( 1, $result );
+		$this->assertSame( "abc{$backslash}x", $result[0]->value );
+
+		// A "\\x" sequence = two "\" characters and the "x" character.
+		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}{$backslash}x'" );
+		$this->assertCount( 0, $result );
+	}
 }

@@ -691,7 +691,11 @@ class WP_SQLite_Driver {
 	 * @return WP_MySQL_Parser        A parser initialized for the MySQL query.
 	 */
 	public function create_parser( string $query ): WP_MySQL_Parser {
-		$lexer  = new WP_MySQL_Lexer( $query );
+		$lexer  = new WP_MySQL_Lexer(
+			$query,
+			80038,
+			$this->active_sql_modes
+		);
 		$tokens = $lexer->remaining_tokens();
 		return new WP_MySQL_Parser( self::$mysql_grammar, $tokens );
 	}
@@ -2508,7 +2512,11 @@ class WP_SQLite_Driver {
 		 * We'll probably need to overload the like() function:
 		 *   https://www.sqlite.org/lang_corefunc.html#like
 		 */
-		return $this->translate_sequence( $node->get_children() ) . " ESCAPE '\\'";
+		$statement = $this->translate_sequence( $node->get_children() );
+		if ( $this->is_sql_mode_active( 'NO_BACKSLASH_ESCAPES' ) ) {
+			return $statement;
+		}
+		return $statement . " ESCAPE '\\'";
 	}
 
 	/**

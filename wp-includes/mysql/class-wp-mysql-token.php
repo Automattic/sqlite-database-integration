@@ -8,6 +8,33 @@
  */
 class WP_MySQL_Token extends WP_Parser_Token {
 	/**
+	 * Whether the NO_BACKSLASH_ESCAPES SQL mode is enabled.
+	 *
+	 * @var bool
+	 */
+	private $sql_mode_no_backslash_escapes_enabled;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param int    $id                                    Token type.
+	 * @param int    $start                                 Byte offset in the input where the token begins.
+	 * @param int    $length                                Byte length of the token in the input.
+	 * @param string $input                                 Input bytes from which the token was parsed.
+	 * @param bool   $sql_mode_no_backslash_escapes_enabled Whether the NO_BACKSLASH_ESCAPES SQL mode is enabled.
+	 */
+	public function __construct(
+		int $id,
+		int $start,
+		int $length,
+		string $input,
+		bool $sql_mode_no_backslash_escapes_enabled
+	) {
+		parent::__construct( $id, $start, $length, $input );
+		$this->sql_mode_no_backslash_escapes_enabled = $sql_mode_no_backslash_escapes_enabled;
+	}
+
+	/**
 	 * Get the name of the token.
 	 *
 	 * This method is intended to be used only for testing and debugging purposes,
@@ -40,6 +67,15 @@ class WP_MySQL_Token extends WP_Parser_Token {
 			$quote = $value[0];
 			$value = substr( $value, 1, -1 );
 
+			/*
+			 * When the NO_BACKSLASH_ESCAPES SQL mode is enabled, we only need to
+			 * handle escaped bounding quotes, as the other characters preserve
+			 * their literal values.
+			 */
+			if ( $this->sql_mode_no_backslash_escapes_enabled ) {
+				return str_replace( $quote . $quote, $quote, $value );
+			}
+
 			/**
 			 * Unescape MySQL escape sequences.
 			 *
@@ -57,8 +93,6 @@ class WP_MySQL_Token extends WP_Parser_Token {
 			 *
 			 * Despite looking similar, these rules are different from the C-style
 			 * string escaping, so we cannot use "strip(c)slashes()" in this case.
-			 *
-			 * @TODO: Handle NO_BACKSLASH_ESCAPES SQL mode.
 			 *
 			 * See: https://dev.mysql.com/doc/refman/8.4/en/string-literals.html
 			 */
