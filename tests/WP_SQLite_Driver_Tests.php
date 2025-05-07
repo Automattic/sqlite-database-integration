@@ -4932,4 +4932,53 @@ QUERY
 		$result = $this->assertQuery( "SELECT value FROM t WHERE value LIKE 'abc{$backslash}{$backslash}x'" );
 		$this->assertCount( 0, $result );
 	}
+
+	public function testQuoteMysqlUtf8StringLiteral(): void {
+		// WP_SQLite_Driver::quote_mysql_utf8_string_literal() is a private method.
+		// Let's use a closure bound to the driver instance to access it for tests.
+		$quote = Closure::bind(
+			function ( string $utf8_literal ) {
+				return $this->quote_mysql_utf8_string_literal( $utf8_literal );
+			},
+			$this->engine,
+			WP_SQLite_Driver::class
+		);
+
+		$backslash = chr( 92 );
+
+		// The formatted string must be enclosed in single quotes.
+		$this->assertSame( "'abc'", $quote( 'abc' ) );
+
+		// Single quotes must be escaped by being doubled.
+		$this->assertSame( "''''", $quote( chr( 39 ) ) );
+		$this->assertSame( "'abc''xyz'", $quote( "abc'xyz" ) );
+
+		// Backslashes must be escaped by being doubled.
+		$this->assertSame( "'{$backslash}{$backslash}'", $quote( $backslash ) );
+		$this->assertSame( "'abc{$backslash}{$backslash}xyz'", $quote( "abc{$backslash}xyz" ) );
+
+		// ASCII NULL, newline, and carriage return must be escaped with a backslash.
+		$this->assertSame( "'{$backslash}0'", $quote( chr( 0 ) ) );  // ASCII NULL (\0)
+		$this->assertSame( "'{$backslash}n'", $quote( chr( 10 ) ) ); // newline (\n)
+		$this->assertSame( "'{$backslash}r'", $quote( chr( 13 ) ) ); // carriage return (\r)
+
+		// Other valid UTF-8 characters must be preserved.
+		$this->assertSame( "'" . chr( 34 ) . "'", $quote( chr( 34 ) ) ); // double quote
+		$this->assertSame( "'" . chr( 96 ) . "'", $quote( chr( 96 ) ) ); // backtick
+		$this->assertSame( "'" . chr( 8 ) . "'", $quote( chr( 8 ) ) );   // backspace
+		$this->assertSame( "'" . chr( 9 ) . "'", $quote( chr( 9 ) ) );   // tab
+		$this->assertSame( "'" . chr( 26 ) . "'", $quote( chr( 26 ) ) ); // Control+Z
+		$this->assertSame( "'🙂'", $quote( '🙂' ) );
+		$this->assertSame( "'👪'", $quote( '👪' ) );
+		$this->assertSame( "'Ʈềʂᴛӏń𝒈 𝙨𝑜ɱê Ū𝐓Ϝ-8 𝒄𝒽ȃᵲ𝛼çṱ𝘦ᴦ𐑈.'", $quote( 'Ʈềʂᴛӏń𝒈 𝙨𝑜ɱê Ū𝐓Ϝ-8 𝒄𝒽ȃᵲ𝛼çṱ𝘦ᴦ𐑈.' ) );
+
+		// Invalid UTF-8 sequences may fail to be preserved.
+		// The following 2-byte sequence with a single quote as the last byte
+		// is not a valid UTF-8 sequence. The single quote gets escaped.
+		// At the moment, this is the intended behavior.
+		$this->assertSame(
+			"'" . chr( 0xC0 ) . chr( 39 ) . chr( 39 ) . "'",
+			$quote( chr( 0xC0 ) . chr( 39 ) )
+		);
+	}
 }
