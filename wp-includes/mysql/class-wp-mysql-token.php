@@ -62,18 +62,19 @@ class WP_MySQL_Token extends WP_Parser_Token {
 			 *
 			 * See: https://dev.mysql.com/doc/refman/8.4/en/string-literals.html
 			 */
+			$backslash    = chr( 92 );
 			$replacements = array(
 				/*
 				 * MySQL special character escape sequences.
 				 */
-				'\0'   => chr( 0 ),  // An ASCII NULL (X'00') character.
-				"\'"   => "'",       // A single quote (') character.
-				'\"'   => '"',       // A double quote (") character.
-				'\b'   => chr( 8 ),  // A backspace character.
-				'\n'   => "\n",      // A newline (linefeed) character.
-				'\r'   => "\r",      // A carriage return character.
-				'\t'   => "\t",      // A tab character.
-				'\Z'   => chr( 26 ), // An ASCII 26 (Control+Z) character.
+				( $backslash . '0' ) => chr( 0 ),  // An ASCII NULL character (\0).
+				( $backslash . "'" ) => chr( 39 ), // A single quote character (').
+				( $backslash . '"' ) => chr( 34 ), // A double quote character (").
+				( $backslash . 'b' ) => chr( 8 ),  // A backspace character.
+				( $backslash . 'n' ) => chr( 10 ), // A newline (linefeed) character (\n).
+				( $backslash . 'r' ) => chr( 13 ), // A carriage return character (\r).
+				( $backslash . 't' ) => chr( 9 ),  // A tab character (\t).
+				( $backslash . 'Z' ) => chr( 26 ), // An ASCII 26 (Control+Z) character.
 
 				/*
 				 * Normalize escaping of "%" and "_" characters.
@@ -92,8 +93,8 @@ class WP_MySQL_Token extends WP_Parser_Token {
 				 *   > of pattern-matching contexts, they evaluate to the strings \% and
 				 *   > \_, not to % and _.
 				 */
-				'\%'   => '\\\\%',
-				'\_'   => '\\\\_',
+				( $backslash . '%' ) => $backslash . $backslash . '%',
+				( $backslash . '_' ) => $backslash . $backslash . '_',
 
 				/*
 				 * Preserve a double backslash as-is, so that the trailing backslash
@@ -102,13 +103,13 @@ class WP_MySQL_Token extends WP_Parser_Token {
 				 * Resolving "\\" to "\" will be handled in the next step, where all
 				 * other backslash-prefixed characters resolve to their literal values.
 				 */
-				'\\\\' => '\\\\',
+				( $backslash . $backslash )
+					=> $backslash . $backslash,
 
 				/*
 				 * The bounding quotes can also be escaped by being doubled.
 				 */
-				$quote . $quote
-					=> $quote,
+				( $quote . $quote )  => $quote,
 			);
 
 			/*
@@ -127,7 +128,8 @@ class WP_MySQL_Token extends WP_Parser_Token {
 			 * A backslash with any other character represents the character itself.
 			 * That is, \x evaluates to x, \\ evaluates to \, and \🙂 evaluates to 🙂.
 			 */
-			$value = preg_replace( '/\\\\(.)/u', '$1', $value );
+			$preg_quoted_backslash = preg_quote( $backslash );
+			$value                 = preg_replace( "/$preg_quoted_backslash(.)/u", '$1', $value );
 		}
 		return $value;
 	}

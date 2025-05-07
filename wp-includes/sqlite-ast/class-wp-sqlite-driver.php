@@ -3560,7 +3560,7 @@ class WP_SQLite_Driver {
 	}
 
 	/**
-	 * Format a MySQL string literal for output in a CREATE TABLE statement.
+	 * Format a MySQL UTF-8 string literal for output in a CREATE TABLE statement.
 	 *
 	 * We expect UTF-8 strings coming from SQLite. The only characters that must
 	 * be escaped in a single-quoted string for a UTF-8 MySQL dump are ' and \.
@@ -3580,10 +3580,10 @@ class WP_SQLite_Driver {
 	 * TODO: We may consider stripping invalid UTF-8 characters, but that's likely
 	 *       to be a bigger project, as these can appear also in other contexts.
 	 *
-	 * @param  string $literal The string literal to escape.
-	 * @return string          The escaped string literal.
+	 * @param  string $utf8_literal The UTF-8 string literal to escape.
+	 * @return string               The escaped string literal.
 	 */
-	private function quote_mysql_utf8_string_literal( string $literal ): string {
+	private function quote_mysql_utf8_string_literal( string $utf8_literal ): string {
 		/*
 		 * We can't use "addcslashes()" here, because it has an unusual handling
 		 * of the ASCII NULL character, escaping it to "\000" instead of "\0".
@@ -3595,14 +3595,15 @@ class WP_SQLite_Driver {
 		 *   - str_replace( [ 'a', 'b' ], [ 'b', 'c' ], 'ab' ); // 'cc' (bad)
 		 *   - strtr( 'ab', [ 'a' => 'b', 'b' => 'c' ] );       // 'bc' (good)
 		 */
+		$backslash    = chr( 92 );
 		$replacements = array(
-			"'"  => "''",
-			'\\' => '\\\\',
-			"\0" => '\0',
-			"\n" => '\n',
-			"\r" => '\r',
+			"'"        => "''",                    // A single quote character (').
+			$backslash => $backslash . $backslash, // A backslash character (\).
+			chr( 0 )   => $backslash . '0',        // An ASCII NULL character (\0).
+			chr( 10 )  => $backslash . 'n',        // A newline (linefeed) character (\n).
+			chr( 13 )  => $backslash . 'r',        // A carriage return character (\r).
 		);
-		return "'" . strtr( $literal, $replacements ) . "'";
+		return "'" . strtr( $utf8_literal, $replacements ) . "'";
 	}
 
 	/**

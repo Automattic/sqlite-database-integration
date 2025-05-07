@@ -664,25 +664,26 @@ class WP_SQLite_Information_Schema_Reconstructor {
 	}
 
 	/**
-	 * Format a MySQL string literal for output in a CREATE TABLE statement.
+	 * Format a MySQL UTF-8 string literal for output in a CREATE TABLE statement.
 	 *
 	 * See WP_SQLite_Driver::quote_mysql_utf8_string_literal().
 	 *
 	 * TODO: This is a copy of WP_SQLite_Driver::quote_mysql_utf8_string_literal().
 	 *       We may consider extracing it to reusable MySQL helpers.
 	 *
-	 * @param  string $literal The string literal to escape.
-	 * @return string          The escaped string literal.
+	 * @param  string $utf8_literal The UTF-8 string literal to escape.
+	 * @return string               The escaped string literal.
 	 */
-	private function quote_mysql_utf8_string_literal( string $literal ): string {
+	private function quote_mysql_utf8_string_literal( string $utf8_literal ): string {
+		$backslash    = chr( 92 );
 		$replacements = array(
-			"'"  => "''",
-			'\\' => '\\\\',
-			"\0" => '\0',
-			"\n" => '\n',
-			"\r" => '\r',
+			"'"        => "''",                    // A single quote character (').
+			$backslash => $backslash . $backslash, // A backslash character (\).
+			chr( 0 )   => $backslash . '0',        // An ASCII NULL character (\0).
+			chr( 10 )  => $backslash . 'n',        // A newline (linefeed) character (\n).
+			chr( 13 )  => $backslash . 'r',        // A carriage return character (\r).
 		);
-		return "'" . strtr( $literal, $replacements ) . "'";
+		return "'" . strtr( $utf8_literal, $replacements ) . "'";
 	}
 
 	/**
