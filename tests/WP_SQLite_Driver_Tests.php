@@ -4972,10 +4972,33 @@ QUERY
 		$this->assertSame( "'👪'", $quote( '👪' ) );
 		$this->assertSame( "'Ʈềʂᴛӏń𝒈 𝙨𝑜ɱê Ū𝐓Ϝ-8 𝒄𝒽ȃᵲ𝛼çṱ𝘦ᴦ𐑈.'", $quote( 'Ʈềʂᴛӏń𝒈 𝙨𝑜ɱê Ū𝐓Ϝ-8 𝒄𝒽ȃᵲ𝛼çṱ𝘦ᴦ𐑈.' ) );
 
-		// Invalid UTF-8 sequences may fail to be preserved.
-		// The following 2-byte sequence with a single quote as the last byte
-		// is not a valid UTF-8 sequence. The single quote gets escaped.
-		// At the moment, this is the intended behavior.
+		// Invalid UTF-8: An incomplete 2-byte sequence is left unchanged.
+		$this->assertSame(
+			"'" . chr( 0xC0 ) . "'",
+			$quote( chr( 0xC0 ) )
+		);
+
+		// Invalid UTF-8: A surrogate pair is left unchanged.
+		$this->assertSame(
+			"'" . chr( 0xED ) . chr( 0xA0 ) . chr( 0x80 ) . "'",
+			$quote( chr( 0xED ) . chr( 0xA0 ) . chr( 0x80 ) )
+		);
+
+		// Invalid UTF-8: Overlong encoding of ASCII NULL is left unchanged.
+		$this->assertSame(
+			"'" . chr( 0xE0 ) . chr( 0x80 ) . chr( 0x80 ) . "'",
+			$quote( chr( 0xE0 ) . chr( 0x80 ) . chr( 0x80 ) )
+		);
+
+		// Invalid UTF-8: A 2-byte sequence prefix, followed by an ASCII NULL.
+		// The NULL is escaped, leaving the C0 prefix an incomplete sequence.
+		$this->assertSame(
+			"'" . chr( 0xC0 ) . "{$backslash}0" . "'",
+			$quote( chr( 0xC0 ) . chr( 0 ) )
+		);
+
+		// Invalid UTF-8: A 2-byte sequence prefix, followed by a single quote.
+		// The single quote is escaped, leaving the C0 prefix an incomplete sequence.
 		$this->assertSame(
 			"'" . chr( 0xC0 ) . chr( 39 ) . chr( 39 ) . "'",
 			$quote( chr( 0xC0 ) . chr( 39 ) )
