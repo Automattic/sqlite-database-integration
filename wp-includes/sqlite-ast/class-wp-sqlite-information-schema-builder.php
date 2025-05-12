@@ -1657,7 +1657,19 @@ class WP_SQLite_Information_Schema_Builder {
 			return 'PRIMARY';
 		}
 
+		/*
+		 * Get index name.
+		 *
+		 * When both index and constraint name are defined, the index name will
+		 * be used. E.g., in "CONSTRAINT c UNIQUE u (id)", the name will be "u".
+		 */
 		$name_node = $node->get_first_descendant_node( 'indexName' );
+		if ( null === $name_node && $node->has_child_node( 'constraintName' ) ) {
+			$name_node = $node
+				->get_first_child_node( 'constraintName' )
+				->get_first_child_node( 'identifier' );
+		}
+
 		if ( null === $name_node ) {
 			/*
 			 * In MySQL, the default index name equals the first column name.

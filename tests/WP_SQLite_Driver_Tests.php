@@ -4704,6 +4704,41 @@ QUERY
 		$this->assertSame( '42S21', $exception->getCode() );
 	}
 
+	public function testConstraintName(): void {
+		$this->assertQuery(
+			'CREATE TABLE t ( id INT, CONSTRAINT cst_id UNIQUE (id) )'
+		);
+
+		$result = $this->assertQuery( 'SHOW INDEX FROM t' );
+		$this->assertCount( 1, $result );
+		$this->assertSame( 'cst_id', $result[0]->Key_name );
+	}
+
+	public function testIndexNamePrecedesConstraintName(): void {
+		$this->assertQuery(
+			'CREATE TABLE t ( id INT, CONSTRAINT cst_id UNIQUE idx_id (id) )'
+		);
+
+		$result = $this->assertQuery( 'SHOW INDEX FROM t' );
+		$this->assertCount( 1, $result );
+		$this->assertSame( 'idx_id', $result[0]->Key_name );
+
+		$result = $this->assertQuery( 'SHOW CREATE TABLE t' );
+		$this->assertCount( 1, $result );
+		$this->assertSame(
+			implode(
+				"\n",
+				array(
+					'CREATE TABLE `t` (',
+					'  `id` int DEFAULT NULL,',
+					'  UNIQUE KEY `idx_id` (`id`)',
+					') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci',
+				)
+			),
+			$result[0]->{'Create Table'}
+		);
+	}
+
 	public function testNoBackslashEscapesSqlMode(): void {
 		$backslash = chr( 92 );
 
