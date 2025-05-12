@@ -29,9 +29,9 @@ class WP_SQLite_Information_Schema_Builder {
 	 *  - REFERENTIAL_CONSTRAINTS (foreign keys)
 	 *  - TRIGGERS
 	 */
-	const CREATE_INFORMATION_SCHEMA_QUERIES = array(
-		// TABLES
-		"CREATE TABLE IF NOT EXISTS <prefix>tables (    -- '<prefix>' is a placeholder replaced at runtime
+	const INFORMATION_SCHEMA_TABLE_DEFINITIONS = array(
+		// INFORMATION_SCHEMA.TABLES
+		'tables'     => "
 			TABLE_CATALOG TEXT NOT NULL DEFAULT 'def',  -- always 'def'
 			TABLE_SCHEMA TEXT NOT NULL,                 -- database name
 			TABLE_NAME TEXT NOT NULL,                   -- table name
@@ -55,10 +55,10 @@ class WP_SQLite_Information_Schema_Builder {
 			CREATE_OPTIONS TEXT NOT NULL DEFAULT '',    -- extra CREATE TABLE options
 			TABLE_COMMENT TEXT NOT NULL DEFAULT '',     -- comment
 			PRIMARY KEY (TABLE_SCHEMA, TABLE_NAME)
-		) STRICT",
+		",
 
-		// COLUMNS
-		"CREATE TABLE IF NOT EXISTS <prefix>columns (       -- '<prefix>' is a placeholder replaced at runtime
+		// INFORMATION_SCHEMA.COLUMNS
+		'columns'    => "
 			TABLE_CATALOG TEXT NOT NULL DEFAULT 'def',      -- always 'def'
 			TABLE_SCHEMA TEXT NOT NULL,                     -- database name
 			TABLE_NAME TEXT NOT NULL,                       -- table name
@@ -82,10 +82,10 @@ class WP_SQLite_Information_Schema_Builder {
 			GENERATION_EXPRESSION TEXT NOT NULL DEFAULT '', -- expression for generated columns
 			SRS_ID INTEGER,                                 -- not implemented
 			PRIMARY KEY (TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME)
-		) STRICT",
+		",
 
-		// STATISTICS (indexes)
-		"CREATE TABLE IF NOT EXISTS <prefix>statistics ( -- '<prefix>' is a placeholder replaced at runtime
+		// INFORMATION_SCHEMA.STATISTICS (indexes)
+		'statistics' => "
 			TABLE_CATALOG TEXT NOT NULL DEFAULT 'def',   -- always 'def'
 			TABLE_SCHEMA TEXT NOT NULL,                  -- database name
 			TABLE_NAME TEXT NOT NULL,                    -- table name
@@ -106,7 +106,7 @@ class WP_SQLite_Information_Schema_Builder {
 			EXPRESSION TEXT,                             -- expression for functional indexes
 			PRIMARY KEY (TABLE_SCHEMA, TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX),
 			UNIQUE (INDEX_SCHEMA, TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX)
-		) STRICT",
+		",
 	);
 
 	/**
@@ -323,8 +323,15 @@ class WP_SQLite_Information_Schema_Builder {
 	 * database. Tables that are missing will be created.
 	 */
 	public function ensure_information_schema_tables(): void {
-		foreach ( self::CREATE_INFORMATION_SCHEMA_QUERIES as $query ) {
-			$this->connection->query( str_replace( '<prefix>', $this->table_prefix, $query ) );
+		foreach ( self::INFORMATION_SCHEMA_TABLE_DEFINITIONS as $table_name => $table_body ) {
+			$this->connection->query(
+				sprintf(
+					'CREATE TABLE IF NOT EXISTS %s%s (%s) STRICT',
+					$this->table_prefix,
+					$table_name,
+					$table_body
+				)
+			);
 		}
 	}
 
@@ -333,9 +340,15 @@ class WP_SQLite_Information_Schema_Builder {
 	 * the SQLite database. Tables that are missing will be created.
 	 */
 	public function ensure_temporary_information_schema_tables(): void {
-		foreach ( self::CREATE_INFORMATION_SCHEMA_QUERIES as $query ) {
-			$query = str_replace( 'CREATE TABLE', 'CREATE TEMPORARY TABLE', $query );
-			$this->connection->query( str_replace( '<prefix>', $this->temporary_table_prefix, $query ) );
+		foreach ( self::INFORMATION_SCHEMA_TABLE_DEFINITIONS as $table_name => $table_body ) {
+			$this->connection->query(
+				sprintf(
+					'CREATE TEMPORARY TABLE IF NOT EXISTS %s%s (%s) STRICT',
+					$this->temporary_table_prefix,
+					$table_name,
+					$table_body
+				)
+			);
 		}
 		$this->temporary_information_schema_exists = true;
 	}
