@@ -4,7 +4,7 @@
  * Description: SQLite database driver drop-in.
  * Author: The WordPress Team
  * Version: 2.1.17-alpha
- * Requires PHP: 7.0
+ * Requires PHP: 7.2
  * Textdomain: sqlite-database-integration
  *
  * This feature plugin allows WordPress to use SQLite instead of MySQL as its database.
