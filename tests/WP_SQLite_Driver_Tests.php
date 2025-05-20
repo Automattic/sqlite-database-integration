@@ -4739,6 +4739,42 @@ QUERY
 		);
 	}
 
+	public function testValidDuplicateConstraintNames(): void {
+		$this->assertQuery(
+			'CREATE TABLE t (
+			id INT,
+			CONSTRAINT cid PRIMARY KEY (id),
+			CONSTRAINT cid UNIQUE (id)
+			-- Not yet supported: CONSTRAINT cid CHECK (id > 0),
+			-- Not yet supported: CONSTRAINT cid FOREIGN KEY (id) REFERENCES t (id)
+		)'
+		);
+
+		// No exception. This table definition is valid in MySQL.
+		// Constraint names must be unique per constraint type, not per table.
+	}
+
+	public function testMultipleTablesWithSameConstraintNames(): void {
+		$this->assertQuery(
+			'CREATE TABLE t1 (
+				id INT,
+				CONSTRAINT c_primary PRIMARY KEY (id),
+				CONSTRAINT c_unique UNIQUE (id)
+			)'
+		);
+
+		$this->assertQuery(
+			'CREATE TABLE t2 (
+				id INT,
+				CONSTRAINT c_primary PRIMARY KEY (id),
+				CONSTRAINT c_unique UNIQUE (id)
+			)'
+		);
+
+		// No exception. This is valid in MySQL.
+		// Primary and unique key names must be unique per table, not per schema.
+	}
+
 	public function testNoBackslashEscapesSqlMode(): void {
 		$backslash = chr( 92 );
 

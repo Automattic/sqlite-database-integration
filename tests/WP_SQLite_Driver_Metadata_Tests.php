@@ -458,4 +458,358 @@ class WP_SQLite_Driver_Metadata_Tests extends TestCase {
 			'SELECT 1, BOGUS(1) FROM bogus;'
 		);
 	}
+
+	public function testInformationSchemaTableConstraintsCreateTable(): void {
+		$this->assertQuery(
+			'CREATE TABLE t (
+				a INT PRIMARY KEY,
+				b INT UNIQUE,
+				c INT,
+				d INT,
+				CONSTRAINT unique_b_c UNIQUE (b, c),
+				INDEX inex_c_d (c, d)
+			)'
+		);
+
+		$result = $this->assertQuery( "SELECT * FROM information_schema.table_constraints WHERE table_name = 't'" );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'PRIMARY',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'PRIMARY KEY',
+					'ENFORCED'           => 'YES',
+				),
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'b',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'UNIQUE',
+					'ENFORCED'           => 'YES',
+				),
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'unique_b_c',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'UNIQUE',
+					'ENFORCED'           => 'YES',
+				),
+			),
+			$result
+		);
+	}
+
+	public function testInformationSchemaTableConstraintsDropTable(): void {
+		$this->assertQuery( 'CREATE TABLE t (a INT PRIMARY KEY, b INT UNIQUE)' );
+		$this->assertQuery( 'DROP TABLE t' );
+		$result = $this->assertQuery( "SELECT * FROM information_schema.table_constraints WHERE table_name = 't'" );
+		$this->assertEquals( array(), $result );
+	}
+
+	public function testInformationSchemaTableConstraintsAddColumn(): void {
+		$this->assertQuery(
+			'CREATE TABLE t ( a INT )'
+		);
+
+		// Add a column with a primary key constraint.
+		$this->assertQuery( 'ALTER TABLE t ADD COLUMN b INT PRIMARY KEY' );
+		$result = $this->assertQuery( "SELECT * FROM information_schema.table_constraints WHERE table_name = 't'" );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'PRIMARY',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'PRIMARY KEY',
+					'ENFORCED'           => 'YES',
+				),
+			),
+			$result
+		);
+
+		$this->assertQuery( 'ALTER TABLE t ADD COLUMN c INT UNIQUE' );
+		$result = $this->assertQuery( "SELECT * FROM information_schema.table_constraints WHERE table_name = 't'" );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'PRIMARY',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'PRIMARY KEY',
+					'ENFORCED'           => 'YES',
+				),
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'c',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'UNIQUE',
+					'ENFORCED'           => 'YES',
+				),
+			),
+			$result
+		);
+	}
+
+	public function testInformationSchemaTableConstraintsChangeColumn(): void {
+		$this->assertQuery( 'CREATE TABLE t (a INT, b INT)' );
+
+		// Add a primary key constraint.
+		$this->assertQuery( 'ALTER TABLE t CHANGE COLUMN a a INT PRIMARY KEY' );
+		$result = $this->assertQuery( "SELECT * FROM information_schema.table_constraints WHERE table_name = 't'" );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'PRIMARY',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'PRIMARY KEY',
+					'ENFORCED'           => 'YES',
+				),
+			),
+			$result
+		);
+
+		// Add a unique constraint.
+		$this->assertQuery( 'ALTER TABLE t MODIFY COLUMN b INT UNIQUE' );
+		$result = $this->assertQuery( "SELECT * FROM information_schema.table_constraints WHERE table_name = 't'" );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'PRIMARY',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'PRIMARY KEY',
+					'ENFORCED'           => 'YES',
+				),
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'b',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'UNIQUE',
+					'ENFORCED'           => 'YES',
+				),
+			),
+			$result
+		);
+	}
+
+	public function testInformationSchemaTableConstraintsDropColumn(): void {
+		$this->assertQuery(
+			'CREATE TABLE t (
+				id INT,
+				a INT,
+				b INT,
+				c INT,
+				CONSTRAINT c_primary PRIMARY KEY (a, b),
+				CONSTRAINT c_unique UNIQUE (b, c),
+				INDEX id (a, b, c)
+			)'
+		);
+
+		$result = $this->assertQuery( "SELECT * FROM information_schema.table_constraints WHERE table_name = 't'" );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'PRIMARY',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'PRIMARY KEY',
+					'ENFORCED'           => 'YES',
+				),
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'c_unique',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'UNIQUE',
+					'ENFORCED'           => 'YES',
+				),
+			),
+			$result
+		);
+
+		// Drop column "b" - all constraints will remain.
+		$this->assertQuery( 'ALTER TABLE t DROP COLUMN b' );
+		$result = $this->assertQuery( "SELECT * FROM information_schema.table_constraints WHERE table_name = 't'" );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'PRIMARY',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'PRIMARY KEY',
+					'ENFORCED'           => 'YES',
+				),
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'c_unique',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'UNIQUE',
+					'ENFORCED'           => 'YES',
+				),
+			),
+			$result
+		);
+
+		// Drop column "c" - the unique constraint will be removed.
+		$this->assertQuery( 'ALTER TABLE t DROP COLUMN c' );
+		$result = $this->assertQuery( "SELECT * FROM information_schema.table_constraints WHERE table_name = 't'" );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'PRIMARY',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'PRIMARY KEY',
+					'ENFORCED'           => 'YES',
+				),
+			),
+			$result
+		);
+
+		// Drop column "a" - the primary key will be removed.
+		$this->assertQuery( 'ALTER TABLE t DROP COLUMN a' );
+		$result = $this->assertQuery( "SELECT * FROM information_schema.table_constraints WHERE table_name = 't'" );
+		$this->assertEquals( array(), $result );
+	}
+
+	public function testInformationSchemaTableConstraintsAddConstraint(): void {
+		$this->assertQuery( 'CREATE TABLE t (a INT, b INT)' );
+
+		// Add a primary key constraint.
+		$this->assertQuery( 'ALTER TABLE t ADD CONSTRAINT primary_key_a PRIMARY KEY (a)' );
+		$result = $this->assertQuery( "SELECT * FROM information_schema.table_constraints WHERE table_name = 't'" );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'PRIMARY',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'PRIMARY KEY',
+					'ENFORCED'           => 'YES',
+				),
+			),
+			$result
+		);
+
+		// Add a unique constraint.
+		$this->assertQuery( 'ALTER TABLE t ADD CONSTRAINT unique_b UNIQUE (b)' );
+		$result = $this->assertQuery( "SELECT * FROM information_schema.table_constraints WHERE table_name = 't'" );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'PRIMARY',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'PRIMARY KEY',
+					'ENFORCED'           => 'YES',
+				),
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'unique_b',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'UNIQUE',
+					'ENFORCED'           => 'YES',
+				),
+			),
+			$result
+		);
+
+		// Add a unique constraint with a composite key.
+		$this->assertQuery( 'ALTER TABLE t ADD CONSTRAINT unique_a_b UNIQUE (a, b)' );
+		$result = $this->assertQuery( "SELECT * FROM information_schema.table_constraints WHERE table_name = 't'" );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'PRIMARY',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'PRIMARY KEY',
+					'ENFORCED'           => 'YES',
+				),
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'unique_b',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'UNIQUE',
+					'ENFORCED'           => 'YES',
+				),
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'unique_a_b',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'UNIQUE',
+					'ENFORCED'           => 'YES',
+				),
+			),
+			$result
+		);
+	}
+
+	public function testInformationSchemaTableConstraintsDropIndex(): void {
+		$this->assertQuery( 'CREATE TABLE t (a INT PRIMARY KEY, b INT UNIQUE)' );
+
+		// Drop the primary key index.
+		$this->assertQuery( 'ALTER TABLE t DROP INDEX `PRIMARY`' );
+		$result = $this->assertQuery( "SELECT * FROM information_schema.table_constraints WHERE table_name = 't'" );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'CONSTRAINT_CATALOG' => 'def',
+					'CONSTRAINT_SCHEMA'  => 'wp',
+					'CONSTRAINT_NAME'    => 'b',
+					'TABLE_SCHEMA'       => 'wp',
+					'TABLE_NAME'         => 't',
+					'CONSTRAINT_TYPE'    => 'UNIQUE',
+					'ENFORCED'           => 'YES',
+				),
+			),
+			$result
+		);
+
+		// Drop the unique index.
+		$this->assertQuery( 'ALTER TABLE t DROP INDEX b' );
+		$result = $this->assertQuery( "SELECT * FROM information_schema.table_constraints WHERE table_name = 't'" );
+		$this->assertEquals( array(), $result );
+	}
 }

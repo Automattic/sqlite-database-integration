@@ -20,10 +20,10 @@ class WP_SQLite_Information_Schema_Builder {
 	 *  - TABLES
 	 *  - COLUMNS
 	 *  - STATISTICS (indexes)
+	 *  - TABLE_CONSTRAINTS
 	 *
 	 * TODO (not yet implemented):
 	 *  - VIEWS
-	 *  - TABLE_CONSTRAINTS (PK, UNIQUE, FK)
 	 *  - CHECK_CONSTRAINTS
 	 *  - KEY_COLUMN_USAGE (foreign keys)
 	 *  - REFERENTIAL_CONSTRAINTS (foreign keys)
@@ -31,7 +31,7 @@ class WP_SQLite_Information_Schema_Builder {
 	 */
 	const INFORMATION_SCHEMA_TABLE_DEFINITIONS = array(
 		// INFORMATION_SCHEMA.TABLES
-		'tables'     => "
+		'tables'            => "
 			TABLE_CATALOG TEXT NOT NULL DEFAULT 'def',  -- always 'def'
 			TABLE_SCHEMA TEXT NOT NULL,                 -- database name
 			TABLE_NAME TEXT NOT NULL,                   -- table name
@@ -58,7 +58,7 @@ class WP_SQLite_Information_Schema_Builder {
 		",
 
 		// INFORMATION_SCHEMA.COLUMNS
-		'columns'    => "
+		'columns'           => "
 			TABLE_CATALOG TEXT NOT NULL DEFAULT 'def',      -- always 'def'
 			TABLE_SCHEMA TEXT NOT NULL,                     -- database name
 			TABLE_NAME TEXT NOT NULL,                       -- table name
@@ -85,7 +85,7 @@ class WP_SQLite_Information_Schema_Builder {
 		",
 
 		// INFORMATION_SCHEMA.STATISTICS (indexes)
-		'statistics' => "
+		'statistics'        => "
 			TABLE_CATALOG TEXT NOT NULL DEFAULT 'def',   -- always 'def'
 			TABLE_SCHEMA TEXT NOT NULL,                  -- database name
 			TABLE_NAME TEXT NOT NULL,                    -- table name
@@ -106,6 +106,24 @@ class WP_SQLite_Information_Schema_Builder {
 			EXPRESSION TEXT,                             -- expression for functional indexes
 			PRIMARY KEY (TABLE_SCHEMA, TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX),
 			UNIQUE (INDEX_SCHEMA, TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX)
+		",
+
+		// INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+		'table_constraints' => "
+			CONSTRAINT_CATALOG TEXT NOT NULL DEFAULT 'def', -- always 'def'
+			CONSTRAINT_SCHEMA TEXT NOT NULL,                -- constraint database name
+			CONSTRAINT_NAME TEXT NOT NULL,                  -- constraint name
+			TABLE_SCHEMA TEXT NOT NULL,                     -- table database name
+			TABLE_NAME TEXT NOT NULL,                       -- table name
+			CONSTRAINT_TYPE TEXT NOT NULL,                  -- constraint type ('PRIMARY KEY', 'UNIQUE', 'FOREIGN KEY', 'CHECK')
+			ENFORCED TEXT NOT NULL DEFAULT 'YES',           -- 'YES' if constraint is enforced, 'NO' otherwise
+
+			-- Constraint names are unique per type in each table.
+			-- A MySQL table can have a PRIMARY KEY, UNIQUE, FOREIGN KEY, and CHECK
+			-- constraints with the same name, but the name must be unique per type.
+			-- CHECK and FOREIGN KEY constraint names must also be unique per schema.
+			PRIMARY KEY (TABLE_SCHEMA, TABLE_NAME, CONSTRAINT_TYPE, CONSTRAINT_NAME),
+			UNIQUE (CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_TYPE, CONSTRAINT_NAME)
 		",
 	);
 
@@ -443,17 +461,32 @@ class WP_SQLite_Information_Schema_Builder {
 				throw $e;
 			}
 
-			// Inline column constraint.
-			$column_constraint_data = $this->extract_column_constraint_data(
+			// Inline column constraints and indexes.
+			$index_data = $this->extract_column_statistics_data(
 				$table_name,
 				$column_name,
 				$column_node,
 				'YES' === $column_data['is_nullable']
 			);
-			if ( null !== $column_constraint_data ) {
+
+			if ( null !== $index_data ) {
 				$this->insert_values(
 					$this->get_table_name( $table_is_temporary, 'statistics' ),
-					$column_constraint_data
+					$index_data
+				);
+			}
+
+			// Save constraint data.
+			$constraint_data = $this->extract_table_constraint_data(
+				$column_node,
+				$table_name,
+				$index_data['index_name'] ?? null
+			);
+
+			if ( null !== $constraint_data ) {
+				$this->insert_values(
+					$this->get_table_name( $table_is_temporary, 'table_constraints' ),
+					$constraint_data
 				);
 			}
 
@@ -594,6 +627,13 @@ class WP_SQLite_Information_Schema_Builder {
 					'table_name'   => $table_name,
 				)
 			);
+			$this->delete_values(
+				$this->get_table_name( $table_is_temporary, 'table_constraints' ),
+				array(
+					'table_schema' => $this->db_name,
+					'table_name'   => $table_name,
+				)
+			);
 		}
 
 		// @TODO: RESTRICT vs. CASCADE
@@ -637,11 +677,23 @@ class WP_SQLite_Information_Schema_Builder {
 			throw $e;
 		}
 
-		$column_constraint_data = $this->extract_column_constraint_data( $table_name, $column_name, $node, true );
-		if ( null !== $column_constraint_data ) {
+		$index_data = $this->extract_column_statistics_data( $table_name, $column_name, $node, true );
+		if ( null !== $index_data ) {
 			$this->insert_values(
 				$this->get_table_name( $table_is_temporary, 'statistics' ),
-				$column_constraint_data
+				$index_data
+			);
+		}
+
+		$constraint_data = $this->extract_table_constraint_data(
+			$node,
+			$table_name,
+			$index_data['index_name'] ?? null
+		);
+		if ( null !== $constraint_data ) {
+			$this->insert_values(
+				$this->get_table_name( $table_is_temporary, 'table_constraints' ),
+				$constraint_data
 			);
 		}
 	}
@@ -691,18 +743,30 @@ class WP_SQLite_Information_Schema_Builder {
 
 		// Handle inline constraints. When inline constraint is defined, MySQL
 		// always adds a new constraint rather than replacing an existing one.
-		$column_constraint_data = $this->extract_column_constraint_data(
+		$index_data = $this->extract_column_statistics_data(
 			$table_name,
 			$new_column_name,
 			$node,
 			'YES' === $column_data['is_nullable']
 		);
-		if ( null !== $column_constraint_data ) {
+		if ( null !== $index_data ) {
 			$this->insert_values(
 				$this->get_table_name( $table_is_temporary, 'statistics' ),
-				$column_constraint_data
+				$index_data
 			);
 			$this->sync_column_key_info( $table_is_temporary, $table_name );
+		}
+
+		$constraint_data = $this->extract_table_constraint_data(
+			$node,
+			$table_name,
+			$index_data['index_name'] ?? null
+		);
+		if ( null !== $constraint_data ) {
+			$this->insert_values(
+				$this->get_table_name( $table_is_temporary, 'table_constraints' ),
+				$constraint_data
+			);
 		}
 	}
 
@@ -735,6 +799,7 @@ class WP_SQLite_Information_Schema_Builder {
 		string $table_name,
 		string $column_name
 	): void {
+		// Delete the column record from the columns table.
 		$this->delete_values(
 			$this->get_table_name( $table_is_temporary, 'columns' ),
 			array(
@@ -744,7 +809,18 @@ class WP_SQLite_Information_Schema_Builder {
 			)
 		);
 
-		/**
+		/*
+		 * When a column is dropped, we need to reflect the effects of the change
+		 * on the existing indexes and constraints that the column was part of.
+		 *
+		 * This means:
+		 *
+		 *   1. Remove the column records from the statistics table.
+		 *   2. Renumber SEQ_IN_INDEX values in the statistics table so that
+		 *      there are no sequence gaps caused by the removed column.
+		 *   3. Recompute column key information in the statistics table.
+		 *   4. Delete the table constraint records for no longer existing indexes.
+		 *
 		 * From MySQL documentation:
 		 *
 		 *   If columns are dropped from a table, the columns are also removed
@@ -757,8 +833,17 @@ class WP_SQLite_Information_Schema_Builder {
 		 * See:
 		 *   - https://dev.mysql.com/doc/refman/8.4/en/alter-table.html
 		 */
+		$statistics_table  = $this->get_table_name( $table_is_temporary, 'statistics' );
+		$constraints_table = $this->get_table_name( $table_is_temporary, 'table_constraints' );
+
+		/*
+		 * 1. Delete the column records from the statistics table.
+		 *
+		 * In MySQL, when a column is dropped, it is removed from all indexes
+		 * that it was part of. An index is dropped when it has no more columns.
+		 */
 		$this->delete_values(
-			$this->get_table_name( $table_is_temporary, 'statistics' ),
+			$statistics_table,
 			array(
 				'table_schema' => $this->db_name,
 				'table_name'   => $table_name,
@@ -766,9 +851,62 @@ class WP_SQLite_Information_Schema_Builder {
 			)
 		);
 
-		// @TODO: Renumber SEQ_IN_INDEX values.
+		/*
+		 * 2. Renumber SEQ_IN_INDEX values in the statistics table.
+		 *
+		 * When a column is removed from a multi-column index, it can leave a gap
+		 * in the numeric sequence of SEQ_IN_INDEX values in the statistics table.
+		 */
+		$this->connection->query(
+			sprintf(
+				'UPDATE %s AS statistics
+				SET seq_in_index = renumbered.seq_in_index
+				FROM (
+					SELECT
+						rowid,
+						row_number() OVER (PARTITION BY index_name ORDER BY seq_in_index) AS seq_in_index
+					FROM %s
+					WHERE table_schema = ?
+					AND table_name = ?
+				) AS renumbered
+				WHERE statistics.rowid = renumbered.rowid
+				AND statistics.seq_in_index != renumbered.seq_in_index',
+				$this->connection->quote_identifier( $statistics_table ),
+				$this->connection->quote_identifier( $statistics_table )
+			),
+			array( $this->db_name, $table_name )
+		);
 
+		/*
+		 * 3. Recompute column key data in the statistics table.
+		 *
+		 * When a column is removed from a multi-column index, it can cause the
+		 * value of COLUMN_KEY in the statistics for other columns to change.
+		 */
 		$this->sync_column_key_info( $table_is_temporary, $table_name );
+
+		/*
+		 * 4. Delete the table constraint records for no longer existing indexes.
+		 *
+		 * If there are no more columns left in an index the column was part of,
+		 * we need to make sure that the associated table constraint records are
+		 * deleted as well. Therefore, remove all index-specific table constraint
+		 * records that have no index data associated with them for a given table.
+		 */
+		$this->connection->query(
+			sprintf(
+				"DELETE FROM %s
+				WHERE table_schema = ?
+				AND table_name = ?
+				AND constraint_type IN ('PRIMARY KEY', 'UNIQUE')
+				AND constraint_name NOT IN (
+					SELECT DISTINCT index_name FROM %s WHERE table_schema = ? AND table_name = ?
+				)",
+				$this->connection->quote_identifier( $constraints_table ),
+				$this->connection->quote_identifier( $statistics_table )
+			),
+			array( $this->db_name, $table_name, $this->db_name, $table_name )
+		);
 	}
 
 	/**
@@ -783,6 +921,7 @@ class WP_SQLite_Information_Schema_Builder {
 		string $table_name,
 		string $index_name
 	): void {
+		// Delete index data.
 		$this->delete_values(
 			$this->get_table_name( $table_is_temporary, 'statistics' ),
 			array(
@@ -791,6 +930,33 @@ class WP_SQLite_Information_Schema_Builder {
 				'index_name'   => $index_name,
 			)
 		);
+
+		/*
+		 * Delete associated table constraint data.
+		 *
+		 * A table constraint record is saved for PRIMARY KEY and UNIQUE indexes.
+		 * We don't need to read the schema to get the constraint type, because:
+		 *
+		 *   1. In MySQL, all primary keys are named "PRIMARY", and no other
+		 *      indexes can be named so. This way we can identify primary keys.
+		 *   2. In MySQL, all indexes in a table must have distinct names, no
+		 *      matter the index type. Therefore, if a table constraint record
+		 *      exists for a given index name, we know it is a unique index.
+		 */
+		$constraint_type =
+			strtoupper( $index_name ) === 'PRIMARY' ? 'PRIMARY KEY' : 'UNIQUE';
+
+		$this->delete_values(
+			$this->get_table_name( $table_is_temporary, 'table_constraints' ),
+			array(
+				'table_schema'    => $this->db_name,
+				'table_name'      => $table_name,
+				'constraint_name' => $index_name,
+				'constraint_type' => $constraint_type,
+			)
+		);
+
+		// Sync column info from constraint data.
 		$this->sync_column_key_info( $table_is_temporary, $table_name );
 	}
 
@@ -890,7 +1056,7 @@ class WP_SQLite_Information_Schema_Builder {
 				$has_spatial_column
 			);
 
-			$column_constraint_data = array(
+			$index_data = array(
 				'table_schema'  => $this->db_name,
 				'table_name'    => $table_name,
 				'non_unique'    => $non_unique,
@@ -913,7 +1079,7 @@ class WP_SQLite_Information_Schema_Builder {
 			try {
 				$this->insert_values(
 					$this->get_table_name( $table_is_temporary, 'statistics' ),
-					$column_constraint_data
+					$index_data
 				);
 			} catch ( PDOException $e ) {
 				if ( '23000' === $e->getCode() ) {
@@ -923,6 +1089,20 @@ class WP_SQLite_Information_Schema_Builder {
 			}
 
 			$seq_in_index += 1;
+		}
+
+		// Save table constraint data.
+		$constraint_data = $this->extract_table_constraint_data(
+			$node,
+			$table_name,
+			$index_name
+		);
+
+		if ( null !== $constraint_data ) {
+			$this->insert_values(
+				$this->get_table_name( $table_is_temporary, 'table_constraints' ),
+				$constraint_data
+			);
 		}
 
 		$this->sync_column_key_info( $table_is_temporary, $table_name );
@@ -983,9 +1163,14 @@ class WP_SQLite_Information_Schema_Builder {
 	 * @param  string         $column_name The column name.
 	 * @param  WP_Parser_Node $node        The "columnDefinition" or "fieldDefinition" AST node.
 	 * @param  bool           $nullable    Whether the column is nullable.
-	 * @return array|null                  Constraint data for the information schema.
+	 * @return array|null                  Column statistics data for the information schema.
 	 */
-	private function extract_column_constraint_data( string $table_name, string $column_name, WP_Parser_Node $node, bool $nullable ): ?array {
+	private function extract_column_statistics_data(
+		string $table_name,
+		string $column_name,
+		WP_Parser_Node $node,
+		bool $nullable
+	): ?array {
 		// Handle inline PRIMARY KEY and UNIQUE constraints.
 		$has_inline_primary_key = null !== $node->get_first_descendant_token( WP_MySQL_Lexer::KEY_SYMBOL );
 		$has_inline_unique_key  = null !== $node->get_first_descendant_token( WP_MySQL_Lexer::UNIQUE_SYMBOL );
@@ -1012,6 +1197,35 @@ class WP_SQLite_Information_Schema_Builder {
 			);
 		}
 		return null;
+	}
+
+	/**
+	 * Extract table constraint data from the "tableConstraintDef" or "columnDefinition" AST node.
+	 *
+	 * @param  WP_Parser_Node $node        The "tableConstraintDef" or "columnDefinition" AST node.
+	 * @param  string         $table_name  The table name.
+	 * @param  string         $column_name The column name.
+	 * @return array                       Table constraint data for the information schema.
+	 */
+	public function extract_table_constraint_data(
+		WP_Parser_Node $node,
+		string $table_name,
+		?string $index_name = null
+	): ?array {
+		$type = $this->get_table_constraint_type( $node );
+		if ( null === $type ) {
+			return null;
+		}
+
+		// Index name always takes precedence over constraint name.
+		$name = $index_name ?? $this->get_table_constraint_name( $node );
+		return array(
+			'table_schema'      => $this->db_name,
+			'table_name'        => $table_name,
+			'constraint_schema' => $this->db_name,
+			'constraint_name'   => $name,
+			'constraint_type'   => $type,
+		);
 	}
 
 	/**
@@ -1644,6 +1858,44 @@ class WP_SQLite_Information_Schema_Builder {
 			return $this->get_value( $expr );
 		}
 		return '';
+	}
+
+	/**
+	 * Extract table constraint name from the "tableConstraintDef" or "columnDefinition" AST node.
+	 *
+	 * @param  WP_Parser_Node $node The "tableConstraintDef" or "columnDefinition" AST node.
+	 * @return string|null          The table constraint name.
+	 */
+	public function get_table_constraint_name( WP_Parser_Node $node ): ?string {
+		$name_node = $node->get_first_child_node( 'constraintName' );
+		if ( null !== $name_node ) {
+			return $this->get_value( $name_node );
+		}
+
+		// TODO: Handle CHECK/FOREIGN KEY/UNIQUE constraints.
+		return null;
+	}
+
+	/**
+	 * Extract table constraint type from the "tableConstraintDef" or "columnDefinition" AST node.
+	 *
+	 * @param  WP_Parser_Node $node The "tableConstraintDef" or "columnDefinition" AST node.
+	 * @return string|null          The table constraint type as stored in information schema.
+	 */
+	private function get_table_constraint_type( WP_Parser_Node $node ): ?string {
+		if ( $node->get_first_descendant_token( WP_MySQL_Lexer::PRIMARY_SYMBOL ) ) {
+			return 'PRIMARY KEY';
+		}
+		if ( $node->get_first_descendant_token( WP_MySQL_Lexer::UNIQUE_SYMBOL ) ) {
+			return 'UNIQUE';
+		}
+		if ( $node->get_first_descendant_token( WP_MySQL_Lexer::FOREIGN_SYMBOL ) ) {
+			return 'FOREIGN KEY';
+		}
+		if ( $node->get_first_descendant_token( WP_MySQL_Lexer::CHECK_SYMBOL ) ) {
+			return 'CHECK';
+		}
+		return null;
 	}
 
 	/**
