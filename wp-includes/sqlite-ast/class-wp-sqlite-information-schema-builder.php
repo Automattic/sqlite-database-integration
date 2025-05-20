@@ -1925,11 +1925,11 @@ class WP_SQLite_Information_Schema_Builder {
 		if ( null === $name_node ) {
 			/*
 			 * In MySQL, the default index name equals the first column name.
-			 * For functional indexes, the string "functional_index" is used.
+			 * If any part is an expression, the name will be "functional_index".
 			 * If the name is already used, we need to append a number.
 			 */
 			$subnode = $node->get_first_child_node( 'keyListVariants' )->get_first_child_node();
-			if ( 'exprWithParentheses' === $subnode->rule_name ) {
+			if ( null !== $subnode->get_first_descendant_node( 'exprWithParentheses' ) ) {
 				$name = 'functional_index';
 			} else {
 				$name = $this->get_value( $subnode->get_first_descendant_node( 'identifier' ) );
