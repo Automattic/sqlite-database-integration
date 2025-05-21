@@ -1250,31 +1250,29 @@ class WP_SQLite_Information_Schema_Builder {
 		$columns_table_name    = $this->get_table_name( $table_is_temporary, 'columns' );
 		$statistics_table_name = $this->get_table_name( $table_is_temporary, 'statistics' );
 		$this->connection->query(
-			"
-				WITH s AS (
-					SELECT
-						column_name,
-						CASE
-							WHEN MAX(index_name = 'PRIMARY') THEN 'PRI'
-							WHEN MAX(non_unique = 0 AND seq_in_index = 1) THEN 'UNI'
-							WHEN MAX(seq_in_index = 1) THEN 'MUL'
-							ELSE ''
-						END AS column_key
-					FROM " . $this->connection->quote_identifier( $statistics_table_name ) . '
-					WHERE table_schema = ?
-					AND table_name = ?
-					GROUP BY column_name
-				)
+			'
 				UPDATE ' . $this->connection->quote_identifier( $columns_table_name ) . " AS c
-				SET
-					column_key = s.column_key,
-					is_nullable = IIF(s.column_key = 'PRI', 'NO', c.is_nullable)
-			    FROM s
+				SET (column_key, is_nullable) = (
+					SELECT
+						CASE
+							WHEN MAX(s.index_name = 'PRIMARY') THEN 'PRI'
+							WHEN MAX(s.non_unique = 0 AND s.seq_in_index = 1) THEN 'UNI'
+							WHEN MAX(s.seq_in_index = 1) THEN 'MUL'
+							ELSE ''
+						END,
+						CASE
+							WHEN MAX(s.index_name = 'PRIMARY') THEN 'NO'
+							ELSE c.is_nullable
+						END
+					FROM " . $this->connection->quote_identifier( $statistics_table_name ) . ' AS s
+					WHERE s.table_schema = c.table_schema
+					AND s.table_name = c.table_name
+					AND s.column_name = c.column_name
+				)
 			    WHERE c.table_schema = ?
 			    AND c.table_name = ?
-				AND s.column_name = c.column_name
-			",
-			array( $this->db_name, $table_name, $this->db_name, $table_name )
+			',
+			array( $this->db_name, $table_name )
 		);
 	}
 
