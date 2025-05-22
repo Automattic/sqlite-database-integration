@@ -5075,4 +5075,68 @@ QUERY
 			$quote( chr( 0xC0 ) . chr( 39 ) )
 		);
 	}
+
+	public function testColumnNamesAreNotCaseSensitive(): void {
+		$this->assertQuery( 'CREATE TABLE t (value TEXT)' );
+
+		// INSERT.
+		$this->assertQuery( "INSERT INTO t (value) VALUES ('one')" );
+		$this->assertQuery( "INSERT INTO t (VaLuE) VALUES ('two')" );
+		$result = $this->assertQuery( 'SELECT * FROM t' );
+		$this->assertCount( 2, $result );
+
+		// SELECT.
+		$result = $this->assertQuery( "SELECT * FROM t WHERE value = 'one'" );
+		$this->assertCount( 1, $result );
+		$this->assertSame( 'one', $result[0]->value );
+
+		$result = $this->assertQuery( "SELECT * FROM t WHERE VaLuE = 'two'" );
+		$this->assertCount( 1, $result );
+		$this->assertSame( 'two', $result[0]->value );
+
+		// UPDATE.
+		$this->assertQuery( "UPDATE t SET value = 'one-updated' WHERE value = 'one'" );
+		$result = $this->assertQuery( "SELECT * FROM t WHERE value = 'one-updated'" );
+		$this->assertCount( 1, $result );
+		$this->assertSame( 'one-updated', $result[0]->value );
+
+		$this->assertQuery( "UPDATE t SET VALUE = 'two-updated' WHERE VaLuE = 'two'" );
+		$result = $this->assertQuery( "SELECT * FROM t WHERE value = 'two-updated'" );
+		$this->assertCount( 1, $result );
+		$this->assertSame( 'two-updated', $result[0]->value );
+
+		// DELETE.
+		$this->assertQuery( "DELETE FROM t WHERE value = 'one-updated'" );
+		$result = $this->assertQuery( 'SELECT * FROM t' );
+		$this->assertCount( 1, $result );
+		$this->assertSame( 'two-updated', $result[0]->value );
+
+		$this->assertQuery( "DELETE FROM t WHERE VaLuE = 'two-updated'" );
+		$result = $this->assertQuery( 'SELECT * FROM t' );
+		$this->assertCount( 0, $result );
+
+		// ALTER TABLE.
+		$this->assertQuery( 'ALTER TABLE t CHANGE COLUMN VaLuE value_changed TEXT' );
+		$this->assertQuery( 'ALTER TABLE t CHANGE COLUMN value_changed value TEXT' );
+
+		// ADD COLUMN.
+		$this->assertQuery( 'ALTER TABLE t ADD COLUMN added TEXT' );
+		$exception = null;
+		try {
+			$this->assertQuery( 'ALTER TABLE t ADD COLUMN AdDeD TEXT' );
+		} catch ( Throwable $e ) {
+			$exception = $e;
+		}
+		$this->assertNotNull( $exception );
+		$this->assertStringContainsString(
+			"Column already exists: 1060 Duplicate column name 'AdDeD'",
+			$exception->getMessage()
+		);
+
+		// DROP COLUMN.
+		$this->assertQuery( 'ALTER TABLE t DROP COLUMN added' );
+		$result = $this->assertQuery( 'SHOW COLUMNS FROM t' );
+		$this->assertCount( 1, $result );
+		$this->assertSame( 'value', $result[0]->Field );
+	}
 }

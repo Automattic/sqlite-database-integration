@@ -1286,14 +1286,20 @@ class WP_SQLite_Driver {
 		$columns_table = $this->information_schema_builder->get_table_name( $table_is_temporary, 'columns' );
 		$column_names  = $this->execute_sqlite_query(
 			sprintf(
-				'SELECT COLUMN_NAME FROM %s WHERE table_schema = ? AND table_name = ?',
+				'SELECT
+					COLUMN_NAME,
+					LOWER(COLUMN_NAME) AS COLUMN_NAME_LOWERCASE
+				FROM %s WHERE table_schema = ? AND table_name = ?',
 				$this->quote_sqlite_identifier( $columns_table )
 			),
 			array( $this->db_name, $table_name )
-		)->fetchAll( PDO::FETCH_COLUMN );
+		)->fetchAll( PDO::FETCH_ASSOC );
 
 		// Track column renames and removals.
-		$column_map = array_combine( $column_names, $column_names );
+		$column_map = array_combine(
+			array_column( $column_names, 'COLUMN_NAME_LOWERCASE' ),
+			array_column( $column_names, 'COLUMN_NAME' )
+		);
 		foreach ( $node->get_descendant_nodes( 'alterListItem' ) as $action ) {
 			$first_token = $action->get_first_child_token();
 
@@ -1302,7 +1308,7 @@ class WP_SQLite_Driver {
 					$name = $this->translate( $action->get_first_child_node( 'fieldIdentifier' ) );
 					if ( null !== $name ) {
 						$name = $this->unquote_sqlite_identifier( $name );
-						unset( $column_map[ $name ] );
+						unset( $column_map[ strtolower( $name ) ] );
 					}
 					break;
 				case WP_MySQL_Lexer::CHANGE_SYMBOL:
@@ -1313,7 +1319,7 @@ class WP_SQLite_Driver {
 						$this->translate( $action->get_first_child_node( 'identifier' ) )
 					);
 
-					$column_map[ $old_name ] = $new_name;
+					$column_map[ strtolower( $old_name ) ] = $new_name;
 					break;
 				case WP_MySQL_Lexer::RENAME_SYMBOL:
 					$column_ref = $action->get_first_child_node( 'fieldIdentifier' );
@@ -1325,7 +1331,7 @@ class WP_SQLite_Driver {
 							$this->translate( $action->get_first_child_node( 'identifier' ) )
 						);
 
-						$column_map[ $old_name ] = $new_name;
+						$column_map[ strtolower( $old_name ) ] = $new_name;
 					}
 					break;
 			}
@@ -3045,7 +3051,7 @@ class WP_SQLite_Driver {
 		$columns_table = $this->information_schema_builder->get_table_name( $is_temporary, 'columns' );
 		$columns       = $this->execute_sqlite_query(
 			'
-				SELECT column_name, is_nullable, data_type, column_default
+				SELECT LOWER(column_name) AS COLUMN_NAME, is_nullable, data_type, column_default
 				FROM ' . $this->quote_sqlite_identifier( $columns_table ) . '
 				WHERE table_schema = ?
 				AND table_name = ?
@@ -3062,7 +3068,7 @@ class WP_SQLite_Driver {
 
 			// Get column info.
 			$column_name = $this->unquote_sqlite_identifier( $this->translate( $column_ref ) );
-			$column_info = $column_map[ $column_name ];
+			$column_info = $column_map[ strtolower( $column_name ) ];
 			$data_type   = $column_info['DATA_TYPE'];
 			$is_nullable = 'YES' === $column_info['IS_NULLABLE'];
 			$default     = $column_info['COLUMN_DEFAULT'];

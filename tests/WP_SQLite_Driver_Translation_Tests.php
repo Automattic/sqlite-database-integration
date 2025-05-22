@@ -532,7 +532,7 @@ class WP_SQLite_Driver_Translation_Tests extends TestCase {
 
 		$this->assertExecutedInformationSchemaQueries(
 			array(
-				"SELECT COLUMN_NAME FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
+				"SELECT COLUMN_NAME, LOWER(COLUMN_NAME) AS COLUMN_NAME_LOWERCASE FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
 				"SELECT MAX(ordinal_position) FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
 				'INSERT INTO `_wp_sqlite_mysql_information_schema_columns` (`table_schema`, `table_name`, `column_name`, `ordinal_position`, `column_default`, `is_nullable`, `data_type`, `character_maximum_length`, `character_octet_length`, `numeric_precision`, `numeric_scale`, `datetime_precision`, `character_set_name`, `collation_name`, `column_type`, `column_key`, `extra`, `privileges`, `column_comment`, `generation_expression`, `srs_id`)'
 					. " VALUES ('wp', 't', 'a', 2, null, 'YES', 'int', null, null, 10, 0, null, null, null, 'int', '', '', 'select,insert,update,references', '', '', null)",
@@ -561,7 +561,7 @@ class WP_SQLite_Driver_Translation_Tests extends TestCase {
 
 		$this->assertExecutedInformationSchemaQueries(
 			array(
-				"SELECT COLUMN_NAME FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
+				"SELECT COLUMN_NAME, LOWER(COLUMN_NAME) AS COLUMN_NAME_LOWERCASE FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
 				"SELECT MAX(ordinal_position) FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
 				'INSERT INTO `_wp_sqlite_mysql_information_schema_columns` (`table_schema`, `table_name`, `column_name`, `ordinal_position`, `column_default`, `is_nullable`, `data_type`, `character_maximum_length`, `character_octet_length`, `numeric_precision`, `numeric_scale`, `datetime_precision`, `character_set_name`, `collation_name`, `column_type`, `column_key`, `extra`, `privileges`, `column_comment`, `generation_expression`, `srs_id`)'
 					. " VALUES ('wp', 't', 'a', 2, null, 'NO', 'int', null, null, 10, 0, null, null, null, 'int', '', '', 'select,insert,update,references', '', '', null)",
@@ -590,7 +590,7 @@ class WP_SQLite_Driver_Translation_Tests extends TestCase {
 
 		$this->assertExecutedInformationSchemaQueries(
 			array(
-				"SELECT COLUMN_NAME FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
+				"SELECT COLUMN_NAME, LOWER(COLUMN_NAME) AS COLUMN_NAME_LOWERCASE FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
 				"SELECT MAX(ordinal_position) FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
 				'INSERT INTO `_wp_sqlite_mysql_information_schema_columns` (`table_schema`, `table_name`, `column_name`, `ordinal_position`, `column_default`, `is_nullable`, `data_type`, `character_maximum_length`, `character_octet_length`, `numeric_precision`, `numeric_scale`, `datetime_precision`, `character_set_name`, `collation_name`, `column_type`, `column_key`, `extra`, `privileges`, `column_comment`, `generation_expression`, `srs_id`)'
 					. " VALUES ('wp', 't', 'a', 2, '0', 'YES', 'int', null, null, 10, 0, null, null, null, 'int', '', '', 'select,insert,update,references', '', '', null)",
@@ -619,7 +619,7 @@ class WP_SQLite_Driver_Translation_Tests extends TestCase {
 
 		$this->assertExecutedInformationSchemaQueries(
 			array(
-				"SELECT COLUMN_NAME FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
+				"SELECT COLUMN_NAME, LOWER(COLUMN_NAME) AS COLUMN_NAME_LOWERCASE FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
 				"SELECT MAX(ordinal_position) FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
 				'INSERT INTO `_wp_sqlite_mysql_information_schema_columns` (`table_schema`, `table_name`, `column_name`, `ordinal_position`, `column_default`, `is_nullable`, `data_type`, `character_maximum_length`, `character_octet_length`, `numeric_precision`, `numeric_scale`, `datetime_precision`, `character_set_name`, `collation_name`, `column_type`, `column_key`, `extra`, `privileges`, `column_comment`, `generation_expression`, `srs_id`)'
 					. " VALUES ('wp', 't', 'a', 2, '0', 'NO', 'int', null, null, 10, 0, null, null, null, 'int', '', '', 'select,insert,update,references', '', '', null)",
@@ -648,7 +648,7 @@ class WP_SQLite_Driver_Translation_Tests extends TestCase {
 
 		$this->assertExecutedInformationSchemaQueries(
 			array(
-				"SELECT COLUMN_NAME FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
+				"SELECT COLUMN_NAME, LOWER(COLUMN_NAME) AS COLUMN_NAME_LOWERCASE FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
 				"SELECT MAX(ordinal_position) FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
 				'INSERT INTO `_wp_sqlite_mysql_information_schema_columns` (`table_schema`, `table_name`, `column_name`, `ordinal_position`, `column_default`, `is_nullable`, `data_type`, `character_maximum_length`, `character_octet_length`, `numeric_precision`, `numeric_scale`, `datetime_precision`, `character_set_name`, `collation_name`, `column_type`, `column_key`, `extra`, `privileges`, `column_comment`, `generation_expression`, `srs_id`)'
 					. " VALUES ('wp', 't', 'a', 2, null, 'YES', 'int', null, null, 10, 0, null, null, null, 'int', '', '', 'select,insert,update,references', '', '', null)",
@@ -683,7 +683,7 @@ class WP_SQLite_Driver_Translation_Tests extends TestCase {
 
 		$this->assertExecutedInformationSchemaQueries(
 			array(
-				"SELECT COLUMN_NAME FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
+				"SELECT COLUMN_NAME, LOWER(COLUMN_NAME) AS COLUMN_NAME_LOWERCASE FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
 				"DELETE FROM `_wp_sqlite_mysql_information_schema_columns` WHERE `table_schema` = 'wp' AND `table_name` = 't' AND `column_name` = 'a'",
 				"DELETE FROM `_wp_sqlite_mysql_information_schema_statistics` WHERE `table_schema` = 'wp' AND `table_name` = 't' AND `column_name` = 'a'",
 				"UPDATE `_wp_sqlite_mysql_information_schema_statistics` AS statistics SET seq_in_index = renumbered.seq_in_index FROM ( SELECT rowid, row_number() OVER (PARTITION BY index_name ORDER BY seq_in_index) AS seq_in_index FROM `_wp_sqlite_mysql_information_schema_statistics` WHERE table_schema = 'wp' AND table_name = 't' ) AS renumbered WHERE statistics.rowid = renumbered.rowid AND statistics.seq_in_index != renumbered.seq_in_index",
@@ -713,7 +713,7 @@ class WP_SQLite_Driver_Translation_Tests extends TestCase {
 
 		$this->assertExecutedInformationSchemaQueries(
 			array(
-				"SELECT COLUMN_NAME FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
+				"SELECT COLUMN_NAME, LOWER(COLUMN_NAME) AS COLUMN_NAME_LOWERCASE FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
 				"DELETE FROM `_wp_sqlite_mysql_information_schema_columns` WHERE `table_schema` = 'wp' AND `table_name` = 't' AND `column_name` = 'a'",
 				"DELETE FROM `_wp_sqlite_mysql_information_schema_statistics` WHERE `table_schema` = 'wp' AND `table_name` = 't' AND `column_name` = 'a'",
 				"UPDATE `_wp_sqlite_mysql_information_schema_statistics` AS statistics SET seq_in_index = renumbered.seq_in_index FROM ( SELECT rowid, row_number() OVER (PARTITION BY index_name ORDER BY seq_in_index) AS seq_in_index FROM `_wp_sqlite_mysql_information_schema_statistics` WHERE table_schema = 'wp' AND table_name = 't' ) AS renumbered WHERE statistics.rowid = renumbered.rowid AND statistics.seq_in_index != renumbered.seq_in_index",
@@ -749,7 +749,7 @@ class WP_SQLite_Driver_Translation_Tests extends TestCase {
 
 		$this->assertExecutedInformationSchemaQueries(
 			array(
-				"SELECT COLUMN_NAME FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
+				"SELECT COLUMN_NAME, LOWER(COLUMN_NAME) AS COLUMN_NAME_LOWERCASE FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
 				"SELECT MAX(ordinal_position) FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
 				'INSERT INTO `_wp_sqlite_mysql_information_schema_columns` (`table_schema`, `table_name`, `column_name`, `ordinal_position`, `column_default`, `is_nullable`, `data_type`, `character_maximum_length`, `character_octet_length`, `numeric_precision`, `numeric_scale`, `datetime_precision`, `character_set_name`, `collation_name`, `column_type`, `column_key`, `extra`, `privileges`, `column_comment`, `generation_expression`, `srs_id`)'
 					. " VALUES ('wp', 't', 'b', 2, null, 'YES', 'int', null, null, 10, 0, null, null, null, 'int', '', '', 'select,insert,update,references', '', '', null)",
@@ -783,7 +783,7 @@ class WP_SQLite_Driver_Translation_Tests extends TestCase {
 
 		$this->assertExecutedInformationSchemaQueries(
 			array(
-				"SELECT COLUMN_NAME FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
+				"SELECT COLUMN_NAME, LOWER(COLUMN_NAME) AS COLUMN_NAME_LOWERCASE FROM `_wp_sqlite_mysql_information_schema_columns` WHERE table_schema = 'wp' AND table_name = 't'",
 				"DELETE FROM `_wp_sqlite_mysql_information_schema_columns` WHERE `table_schema` = 'wp' AND `table_name` = 't' AND `column_name` = 'a'",
 				"DELETE FROM `_wp_sqlite_mysql_information_schema_statistics` WHERE `table_schema` = 'wp' AND `table_name` = 't' AND `column_name` = 'a'",
 				"UPDATE `_wp_sqlite_mysql_information_schema_statistics` AS statistics SET seq_in_index = renumbered.seq_in_index FROM ( SELECT rowid, row_number() OVER (PARTITION BY index_name ORDER BY seq_in_index) AS seq_in_index FROM `_wp_sqlite_mysql_information_schema_statistics` WHERE table_schema = 'wp' AND table_name = 't' ) AS renumbered WHERE statistics.rowid = renumbered.rowid AND statistics.seq_in_index != renumbered.seq_in_index",

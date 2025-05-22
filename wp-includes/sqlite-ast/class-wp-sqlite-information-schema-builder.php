@@ -32,91 +32,91 @@ class WP_SQLite_Information_Schema_Builder {
 	const INFORMATION_SCHEMA_TABLE_DEFINITIONS = array(
 		// INFORMATION_SCHEMA.TABLES
 		'tables'            => "
-			TABLE_CATALOG TEXT NOT NULL DEFAULT 'def',  -- always 'def'
-			TABLE_SCHEMA TEXT NOT NULL,                 -- database name
-			TABLE_NAME TEXT NOT NULL,                   -- table name
-			TABLE_TYPE TEXT NOT NULL,                   -- 'BASE TABLE' or 'VIEW'
-			ENGINE TEXT NOT NULL,                       -- storage engine
-			VERSION INTEGER NOT NULL DEFAULT 10,        -- unused, in MySQL 8 hardcoded to 10
-			ROW_FORMAT TEXT NOT NULL,                   -- row storage format @TODO - implement
-			TABLE_ROWS INTEGER NOT NULL DEFAULT 0,      -- not implemented
-			AVG_ROW_LENGTH INTEGER NOT NULL DEFAULT 0,  -- not implemented
-			DATA_LENGTH INTEGER NOT NULL DEFAULT 0,     -- not implemented
-			MAX_DATA_LENGTH INTEGER NOT NULL DEFAULT 0, -- not implemented
-			INDEX_LENGTH INTEGER NOT NULL DEFAULT 0,    -- not implemented
-			DATA_FREE INTEGER NOT NULL DEFAULT 0,       -- not implemented
-			AUTO_INCREMENT INTEGER,                     -- not implemented
-			CREATE_TIME TEXT NOT NULL                   -- table creation timestamp
+			TABLE_CATALOG TEXT NOT NULL DEFAULT 'def' COLLATE NOCASE, -- always 'def'
+			TABLE_SCHEMA TEXT NOT NULL COLLATE NOCASE,                -- database name
+			TABLE_NAME TEXT NOT NULL COLLATE NOCASE,                  -- table name
+			TABLE_TYPE TEXT NOT NULL COLLATE BINARY,                  -- 'BASE TABLE', 'VIEW', or 'SYSTEM VIEW'
+			ENGINE TEXT NOT NULL COLLATE NOCASE,                      -- storage engine
+			VERSION INTEGER NOT NULL DEFAULT 10,                      -- unused, in MySQL 8 hardcoded to 10
+			ROW_FORMAT TEXT NOT NULL COLLATE BINARY,                  -- row storage format @TODO - implement
+			TABLE_ROWS INTEGER NOT NULL DEFAULT 0,                    -- not implemented
+			AVG_ROW_LENGTH INTEGER NOT NULL DEFAULT 0,                -- not implemented
+			DATA_LENGTH INTEGER NOT NULL DEFAULT 0,                   -- not implemented
+			MAX_DATA_LENGTH INTEGER NOT NULL DEFAULT 0,               -- not implemented
+			INDEX_LENGTH INTEGER NOT NULL DEFAULT 0,                  -- not implemented
+			DATA_FREE INTEGER NOT NULL DEFAULT 0,                     -- not implemented
+			AUTO_INCREMENT INTEGER,                                   -- not implemented
+			CREATE_TIME TEXT NOT NULL                                 -- table creation timestamp
 				DEFAULT CURRENT_TIMESTAMP,
-			UPDATE_TIME TEXT,                           -- table update time
-			CHECK_TIME TEXT,                            -- not implemented
-			TABLE_COLLATION TEXT NOT NULL,              -- table collation
-			CHECKSUM INTEGER,                           -- not implemented
-			CREATE_OPTIONS TEXT NOT NULL DEFAULT '',    -- extra CREATE TABLE options
-			TABLE_COMMENT TEXT NOT NULL DEFAULT '',     -- comment
+			UPDATE_TIME TEXT,                                         -- table update time
+			CHECK_TIME TEXT,                                          -- not implemented
+			TABLE_COLLATION TEXT NOT NULL COLLATE NOCASE,             -- table collation
+			CHECKSUM INTEGER,                                         -- not implemented
+			CREATE_OPTIONS TEXT NOT NULL DEFAULT '' COLLATE NOCASE,   -- extra CREATE TABLE options
+			TABLE_COMMENT TEXT NOT NULL DEFAULT '' COLLATE NOCASE,    -- comment
 			PRIMARY KEY (TABLE_SCHEMA, TABLE_NAME)
 		",
 
 		// INFORMATION_SCHEMA.COLUMNS
 		'columns'           => "
-			TABLE_CATALOG TEXT NOT NULL DEFAULT 'def',      -- always 'def'
-			TABLE_SCHEMA TEXT NOT NULL,                     -- database name
-			TABLE_NAME TEXT NOT NULL,                       -- table name
-			COLUMN_NAME TEXT NOT NULL,                      -- column name
-			ORDINAL_POSITION INTEGER NOT NULL,              -- column position
-			COLUMN_DEFAULT TEXT,                            -- default value, NULL for both NULL and none
-			IS_NULLABLE TEXT NOT NULL,                      -- 'YES' or 'NO'
-			DATA_TYPE TEXT NOT NULL,                        -- data type (without length, precision, etc.)
-			CHARACTER_MAXIMUM_LENGTH INTEGER,               -- max length for string columns in characters
-			CHARACTER_OCTET_LENGTH INTEGER,                 -- max length for string columns in bytes
-			NUMERIC_PRECISION INTEGER,                      -- number precision for numeric columns
-			NUMERIC_SCALE INTEGER,                          -- number scale for numeric columns
-			DATETIME_PRECISION INTEGER,                     -- fractional seconds precision for temporal columns
-			CHARACTER_SET_NAME TEXT,                        -- charset for string columns
-			COLLATION_NAME TEXT,                            -- collation for string columns
-			COLUMN_TYPE TEXT NOT NULL,                      -- full data type (with length, precision, etc.)
-			COLUMN_KEY TEXT NOT NULL DEFAULT '',            -- if column is indexed ('', 'PRI', 'UNI', 'MUL')
-			EXTRA TEXT NOT NULL DEFAULT '',                 -- AUTO_INCREMENT, VIRTUAL, STORED, etc.
-			PRIVILEGES TEXT NOT NULL,                       -- not implemented
-			COLUMN_COMMENT TEXT NOT NULL DEFAULT '',        -- comment
-			GENERATION_EXPRESSION TEXT NOT NULL DEFAULT '', -- expression for generated columns
-			SRS_ID INTEGER,                                 -- not implemented
+			TABLE_CATALOG TEXT NOT NULL DEFAULT 'def' COLLATE NOCASE,      -- always 'def'
+			TABLE_SCHEMA TEXT NOT NULL COLLATE NOCASE,                     -- database name
+			TABLE_NAME TEXT NOT NULL COLLATE NOCASE,                       -- table name
+			COLUMN_NAME TEXT NOT NULL COLLATE NOCASE,                      -- column name
+			ORDINAL_POSITION INTEGER NOT NULL,                             -- column position
+			COLUMN_DEFAULT TEXT COLLATE BINARY,                            -- default value, NULL for both NULL and none
+			IS_NULLABLE TEXT NOT NULL COLLATE NOCASE,                      -- 'YES' or 'NO'
+			DATA_TYPE TEXT NOT NULL COLLATE BINARY,                        -- data type (without length, precision, etc.)
+			CHARACTER_MAXIMUM_LENGTH INTEGER,                              -- max length for string columns in characters
+			CHARACTER_OCTET_LENGTH INTEGER,                                -- max length for string columns in bytes
+			NUMERIC_PRECISION INTEGER,                                     -- number precision for numeric columns
+			NUMERIC_SCALE INTEGER,                                         -- number scale for numeric columns
+			DATETIME_PRECISION INTEGER,                                    -- fractional seconds precision for temporal columns
+			CHARACTER_SET_NAME TEXT COLLATE NOCASE,                        -- charset for string columns
+			COLLATION_NAME TEXT COLLATE NOCASE,                            -- collation for string columns
+			COLUMN_TYPE TEXT NOT NULL COLLATE BINARY,                      -- full data type (with length, precision, etc.)
+			COLUMN_KEY TEXT NOT NULL DEFAULT '' COLLATE BINARY,            -- if column is indexed ('', 'PRI', 'UNI', 'MUL')
+			EXTRA TEXT NOT NULL DEFAULT '' COLLATE NOCASE,                 -- AUTO_INCREMENT, VIRTUAL, STORED, etc.
+			PRIVILEGES TEXT NOT NULL COLLATE NOCASE,                       -- not implemented
+			COLUMN_COMMENT TEXT NOT NULL DEFAULT '' COLLATE BINARY,        -- comment
+			GENERATION_EXPRESSION TEXT NOT NULL DEFAULT '' COLLATE BINARY, -- expression for generated columns
+			SRS_ID INTEGER,                                                -- not implemented
 			PRIMARY KEY (TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME)
 		",
 
 		// INFORMATION_SCHEMA.STATISTICS (indexes)
 		'statistics'        => "
-			TABLE_CATALOG TEXT NOT NULL DEFAULT 'def',   -- always 'def'
-			TABLE_SCHEMA TEXT NOT NULL,                  -- database name
-			TABLE_NAME TEXT NOT NULL,                    -- table name
-			NON_UNIQUE INTEGER NOT NULL,                 -- 0 for unique indexes, 1 otherwise
-			INDEX_SCHEMA TEXT NOT NULL,                  -- index database name
-			INDEX_NAME TEXT NOT NULL,                    -- index name, for PKs always 'PRIMARY'
-			SEQ_IN_INDEX INTEGER NOT NULL,               -- column position in index (from 1)
-			COLUMN_NAME TEXT,                            -- column name (NULL for functional indexes)
-			COLLATION TEXT,                              -- column sort in the index ('A', 'D', or NULL)
-			CARDINALITY INTEGER,                         -- not implemented
-			SUB_PART INTEGER,                            -- number of indexed chars, NULL for full column
-			PACKED TEXT,                                 -- not implemented
-			NULLABLE TEXT NOT NULL,                      -- 'YES' if column can contain NULL, '' otherwise
-			INDEX_TYPE TEXT NOT NULL,                    -- 'BTREE', 'FULLTEXT', 'SPATIAL'
-			COMMENT TEXT NOT NULL DEFAULT '',            -- not implemented
-			INDEX_COMMENT TEXT NOT NULL DEFAULT '',      -- index comment
-			IS_VISIBLE TEXT NOT NULL DEFAULT 'YES',      -- 'NO' if column is hidden, 'YES' otherwise
-			EXPRESSION TEXT,                             -- expression for functional indexes
+			TABLE_CATALOG TEXT NOT NULL DEFAULT 'def' COLLATE NOCASE, -- always 'def'
+			TABLE_SCHEMA TEXT NOT NULL COLLATE NOCASE,                -- database name
+			TABLE_NAME TEXT NOT NULL COLLATE NOCASE,                  -- table name
+			NON_UNIQUE INTEGER NOT NULL,                              -- 0 for unique indexes, 1 otherwise
+			INDEX_SCHEMA TEXT NOT NULL COLLATE NOCASE,                -- index database name
+			INDEX_NAME TEXT NOT NULL COLLATE NOCASE,                  -- index name, for PKs always 'PRIMARY'
+			SEQ_IN_INDEX INTEGER NOT NULL,                            -- column position in index (from 1)
+			COLUMN_NAME TEXT COLLATE NOCASE,                          -- column name (NULL for functional indexes)
+			COLLATION TEXT COLLATE NOCASE,                            -- column sort in the index ('A', 'D', or NULL)
+			CARDINALITY INTEGER,                                      -- not implemented
+			SUB_PART INTEGER,                                         -- number of indexed chars, NULL for full column
+			PACKED TEXT,                                              -- not implemented
+			NULLABLE TEXT NOT NULL COLLATE NOCASE,                    -- 'YES' if column can contain NULL, '' otherwise
+			INDEX_TYPE TEXT NOT NULL COLLATE BINARY,                  -- 'BTREE', 'FULLTEXT', 'SPATIAL'
+			COMMENT TEXT NOT NULL DEFAULT '' COLLATE NOCASE,          -- not implemented
+			INDEX_COMMENT TEXT NOT NULL DEFAULT '' COLLATE BINARY,    -- index comment
+			IS_VISIBLE TEXT NOT NULL DEFAULT 'YES' COLLATE NOCASE,    -- 'NO' if column is hidden, 'YES' otherwise
+			EXPRESSION TEXT COLLATE BINARY,                           -- expression for functional indexes
 			PRIMARY KEY (TABLE_SCHEMA, TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX),
 			UNIQUE (INDEX_SCHEMA, TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX)
 		",
 
 		// INFORMATION_SCHEMA.TABLE_CONSTRAINTS
 		'table_constraints' => "
-			CONSTRAINT_CATALOG TEXT NOT NULL DEFAULT 'def', -- always 'def'
-			CONSTRAINT_SCHEMA TEXT NOT NULL,                -- constraint database name
-			CONSTRAINT_NAME TEXT NOT NULL,                  -- constraint name
-			TABLE_SCHEMA TEXT NOT NULL,                     -- table database name
-			TABLE_NAME TEXT NOT NULL,                       -- table name
-			CONSTRAINT_TYPE TEXT NOT NULL,                  -- constraint type ('PRIMARY KEY', 'UNIQUE', 'FOREIGN KEY', 'CHECK')
-			ENFORCED TEXT NOT NULL DEFAULT 'YES',           -- 'YES' if constraint is enforced, 'NO' otherwise
+			CONSTRAINT_CATALOG TEXT NOT NULL DEFAULT 'def' COLLATE NOCASE, -- always 'def'
+			CONSTRAINT_SCHEMA TEXT NOT NULL COLLATE NOCASE,                -- constraint database name
+			CONSTRAINT_NAME TEXT NOT NULL COLLATE NOCASE,                  -- constraint name
+			TABLE_SCHEMA TEXT NOT NULL COLLATE NOCASE,                     -- table database name
+			TABLE_NAME TEXT NOT NULL COLLATE NOCASE,                       -- table name
+			CONSTRAINT_TYPE TEXT NOT NULL COLLATE BINARY,                  -- constraint type ('PRIMARY KEY', 'UNIQUE', 'FOREIGN KEY', 'CHECK')
+			ENFORCED TEXT NOT NULL DEFAULT 'YES' COLLATE BINARY,           -- 'YES' if constraint is enforced, 'NO' otherwise
 
 			-- Constraint names are unique per type in each table.
 			-- A MySQL table can have a PRIMARY KEY, UNIQUE, FOREIGN KEY, and CHECK
