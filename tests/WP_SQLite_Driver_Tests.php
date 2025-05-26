@@ -5139,4 +5139,22 @@ QUERY
 		$this->assertCount( 1, $result );
 		$this->assertSame( 'value', $result[0]->Field );
 	}
+
+	public function testAliasesMustBeAscii(): void {
+		$this->expectException( WP_SQLite_Driver_Exception::class );
+		$this->expectExceptionMessage( 'The SQLite driver only supports ASCII characters in identifiers.' );
+		$this->assertQuery( 'SELECT 123 AS `ńôñ-ášçíì`' );
+	}
+
+	public function testTableNamesMustBeAscii(): void {
+		$this->expectException( WP_SQLite_Driver_Exception::class );
+		$this->expectExceptionMessage( 'The SQLite driver only supports ASCII characters in identifiers.' );
+		$this->assertQuery( 'CREATE TABLE `ńôñ-ášçíì` (id INT)' );
+	}
+
+	public function testColumnNamesMustBeAscii(): void {
+		$this->expectException( WP_SQLite_Driver_Exception::class );
+		$this->expectExceptionMessage( 'The SQLite driver only supports ASCII characters in identifiers.' );
+		$this->assertQuery( 'CREATE TABLE t (`ńôñ-ášçíì` INT)' );
+	}
 }

@@ -2113,6 +2113,19 @@ class WP_SQLite_Information_Schema_Builder {
 		foreach ( $node->get_children() as $child ) {
 			if ( $child instanceof WP_Parser_Node ) {
 				$value = $this->get_value( $child );
+
+				/*
+				 * At the moment, we only support ASCII bytes in all identifiers.
+				 * This is because SQLite doesn't support case-insensitive Unicode
+				 * character matching: https://sqlite.org/faq.html#q18
+				 */
+				if ( 'pureIdentifier' === $child->rule_name ) {
+					for ( $i = 0; $i < strlen( $value ); $i++ ) {
+						if ( ord( $value[ $i ] ) > 127 ) {
+							throw new Exception( 'The SQLite driver only supports ASCII characters in identifiers.' );
+						}
+					}
+				}
 			} else {
 				$value = $child->get_value();
 			}

@@ -2121,7 +2121,21 @@ class WP_SQLite_Driver {
 			case 'identifierKeyword':
 				return '`' . $this->translate( $node->get_first_child() ) . '`';
 			case 'pureIdentifier':
-				return $this->translate_pure_identifier( $node );
+				$value = $this->translate_pure_identifier( $node );
+
+				/*
+				 * At the moment, we only support ASCII bytes in all identifiers.
+				 * This is because SQLite doesn't support case-insensitive Unicode
+				 * character matching: https://sqlite.org/faq.html#q18
+				 */
+				for ( $i = 0; $i < strlen( $value ); $i++ ) {
+					if ( ord( $value[ $i ] ) > 127 ) {
+						throw $this->new_driver_exception(
+							'The SQLite driver only supports ASCII characters in identifiers.'
+						);
+					}
+				}
+				return $value;
 			case 'textStringLiteral':
 				return $this->translate_string_literal( $node );
 			case 'dataType':
