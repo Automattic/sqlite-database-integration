@@ -1034,7 +1034,7 @@ class WP_SQLite_Information_Schema_Builder {
 		$has_spatial_column = null !== $first_column_type && $this->is_spatial_data_type( $first_column_type );
 
 		$non_unique    = $this->get_index_non_unique( $keyword );
-		$index_name    = $this->get_index_name( $node );
+		$index_name    = $this->get_index_name( $node, $table_name );
 		$index_type    = $this->get_index_type( $node, $keyword, $has_spatial_column );
 		$index_comment = $this->get_index_comment( $node );
 		$seq_in_index  = 1;
@@ -1899,10 +1899,11 @@ class WP_SQLite_Information_Schema_Builder {
 	/**
 	 * Extract index name from the "tableConstraintDef" AST node.
 	 *
-	 * @param  WP_Parser_Node $node The "tableConstraintDef" AST node.
-	 * @return string               The index name as stored in information schema.
+	 * @param  WP_Parser_Node $node       The "tableConstraintDef" AST node.
+	 * @param  string         $table_name The table name.
+	 * @return string                     The index name as stored in information schema.
 	 */
-	private function get_index_name( WP_Parser_Node $node ): string {
+	private function get_index_name( WP_Parser_Node $node, string $table_name ): string {
 		if ( $node->get_first_descendant_token( WP_MySQL_Lexer::PRIMARY_SYMBOL ) ) {
 			return 'PRIMARY';
 		}
@@ -1933,8 +1934,44 @@ class WP_SQLite_Information_Schema_Builder {
 				$name = $this->get_value( $subnode->get_first_descendant_node( 'identifier' ) );
 			}
 
-			// @TODO: Check if the name is already used.
-			return $name;
+			// Check if the name is already used.
+			$existing_indices = $this->connection->query(
+				sprintf(
+					"SELECT DISTINCT index_name
+					FROM %s
+					WHERE table_schema = ?
+					AND table_name = ?
+					AND (index_name = ? OR index_name LIKE ? ESCAPE '\\')",
+					$this->connection->quote_identifier(
+						$this->get_table_name(
+							$this->temporary_table_exists( $table_name ),
+							'statistics'
+						)
+					)
+				),
+				array(
+					$this->db_name,
+					$table_name,
+					$name,
+					str_replace( array( '_', '%' ), array( '\\_', '\\%' ), $name ) . '\\_%',
+				)
+			)->fetchAll(
+				PDO::FETCH_COLUMN // phpcs:ignore WordPress.DB.RestrictedClasses.mysql__PDO
+			);
+
+			// The name is not used - we can use it as-is.
+			if ( count( $existing_indices ) === 0 ) {
+				return $name;
+			}
+
+			// The name is used - find the first unused name.
+			$new_name = $name;
+			$suffix   = 2;
+			while ( in_array( $new_name, $existing_indices, true ) ) {
+				$new_name = $name . '_' . $suffix;
+				$suffix  += 1;
+			}
+			return $new_name;
 		}
 		return $this->get_value( $name_node );
 	}

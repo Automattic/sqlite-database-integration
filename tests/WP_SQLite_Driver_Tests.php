@@ -4739,6 +4739,36 @@ QUERY
 		);
 	}
 
+	public function testImplicitIndexNames(): void {
+		$this->assertQuery(
+			'CREATE TABLE t (
+				id INT UNIQUE,
+				id_2 INT UNIQUE,
+				value INT,
+				UNIQUE (id),
+				UNIQUE (id, value)
+			)'
+		);
+
+		$result = $this->assertQuery( 'SHOW INDEX FROM t' );
+		$this->assertCount( 5, $result );
+
+		$this->assertSame( 'id', $result[0]->Key_name );
+		$this->assertSame( 'id', $result[0]->Column_name );
+
+		$this->assertSame( 'id_2', $result[1]->Key_name );
+		$this->assertSame( 'id_2', $result[1]->Column_name );
+
+		$this->assertSame( 'id_3', $result[2]->Key_name );
+		$this->assertSame( 'id', $result[2]->Column_name );
+
+		$this->assertSame( 'id_4', $result[3]->Key_name );
+		$this->assertSame( 'id', $result[3]->Column_name );
+
+		$this->assertSame( 'id_4', $result[4]->Key_name );
+		$this->assertSame( 'value', $result[4]->Column_name );
+	}
+
 	public function testValidDuplicateConstraintNames(): void {
 		$this->assertQuery(
 			'CREATE TABLE t (
