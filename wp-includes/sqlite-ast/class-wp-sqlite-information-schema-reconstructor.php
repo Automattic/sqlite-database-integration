@@ -587,14 +587,24 @@ class WP_SQLite_Information_Schema_Reconstructor {
 	private function get_cached_mysql_data_type( string $table_name, string $column_or_index_name ): ?string {
 		try {
 			$mysql_type = $this->driver->execute_sqlite_query(
-				'SELECT mysql_type FROM _mysql_data_types_cache WHERE `table` = ? AND column_or_index = ?',
-				array( $table_name, $column_or_index_name )
+				'SELECT mysql_type FROM _mysql_data_types_cache
+				WHERE `table` = ? COLLATE NOCASE
+				AND (
+					-- The old SQLite driver stored the MySQL data types in multiple
+					-- formats - lowercase, uppercase, and, sometimes, with backticks.
+					column_or_index = ? COLLATE NOCASE
+					OR column_or_index = ? COLLATE NOCASE
+				)',
+				array( $table_name, $column_or_index_name, "`$column_or_index_name`" )
 			)->fetchColumn();
 		} catch ( PDOException $e ) {
 			if ( str_contains( $e->getMessage(), 'no such table' ) ) {
 				return null;
 			}
 			throw $e;
+		}
+		if ( false === $mysql_type ) {
+			return null;
 		}
 
 		// Normalize index type for backward compatibility. Some older versions
