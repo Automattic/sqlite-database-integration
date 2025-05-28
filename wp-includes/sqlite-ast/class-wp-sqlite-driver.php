@@ -3018,9 +3018,14 @@ class WP_SQLite_Driver {
 				}
 				$fragment .= null === $default ? 'NULL' : $this->connection->quote( $default );
 			} else {
-				// When a column value is included, we can use it without change.
-				$position  = array_search( $column['COLUMN_NAME'], $insert_list, true );
-				$fragment .= $this->quote_sqlite_identifier( $select_list[ $position ] );
+				// When a column value is included, we need to apply type casting.
+				$position   = array_search( $column['COLUMN_NAME'], $insert_list, true );
+				$identifier = $this->quote_sqlite_identifier( $select_list[ $position ] );
+				$fragment  .= sprintf(
+					'%s AS %s',
+					$this->cast_value_in_non_strict_mode( $column['DATA_TYPE'], $identifier ),
+					$identifier
+				);
 			}
 		}
 
@@ -3095,6 +3100,9 @@ class WP_SQLite_Driver {
 				$value = $this->translate( $expr );
 			}
 
+			// Apply type casting.
+			$value = $this->cast_value_in_non_strict_mode( $data_type, $value );
+
 			// If the column is NOT NULL, a NULL value resolves to implicit default.
 			$implicit_default = self::DATA_TYPE_IMPLICIT_DEFAULT_MAP[ $data_type ] ?? null;
 			if ( ! $is_nullable && null !== $implicit_default ) {
@@ -3108,6 +3116,61 @@ class WP_SQLite_Driver {
 			$fragment .= $value;
 		}
 		return $fragment;
+	}
+
+	/**
+	 * Emulate MySQL type casting for INSERT or UPDATE value in non-strict mode.
+	 *
+	 * @param  string $mysql_data_type  The MySQL data type.
+	 * @param  string $translated_value The original translated value.
+	 * @return string                   The translated value.
+	 */
+	private function cast_value_in_non_strict_mode(
+		string $mysql_data_type,
+		string $translated_value
+	): string {
+		$sqlite_data_type = self::DATA_TYPE_STRING_MAP[ $mysql_data_type ];
+
+		// Get and quote the IMPLICIT DEFAULT value.
+		$implicit_default        = self::DATA_TYPE_IMPLICIT_DEFAULT_MAP[ $mysql_data_type ] ?? null;
+		$quoted_implicit_default = null === $implicit_default
+			? 'NULL'
+			: $this->connection->quote( $implicit_default );
+
+		/*
+		 * In MySQL, when saving a value via INSERT or UPDATE in non-strict mode,
+		 *   1. MySQL attempts to cast the value to the target column data type.
+		 *   2. When casting can't be done, MySQL saves an IMPLICIT DEFAULT.
+		 */
+		switch ( $mysql_data_type ) {
+			case 'date':
+			case 'time':
+			case 'datetime':
+			case 'timestamp':
+			case 'year':
+				if ( 'date' === $mysql_data_type ) {
+					$function_call = sprintf( 'DATE(%s)', $translated_value );
+				} elseif ( 'time' === $mysql_data_type ) {
+					$function_call = sprintf( 'TIME(%s)', $translated_value );
+				} elseif ( 'datetime' === $mysql_data_type || 'timestamp' === $mysql_data_type ) {
+					$function_call = sprintf( 'DATETIME(%s)', $translated_value );
+				} elseif ( 'year' === $mysql_data_type ) {
+					$function_call = sprintf( "STRFTIME('%%Y', %s)", $translated_value );
+				}
+
+				// When the function call evaluates to NULL (invalid date/time),
+				// we need to fallback to the IMPLICIT DEFAULT value.
+				return sprintf(
+					'IIF(%s IS NULL, NULL, COALESCE(%s, %s))',
+					$translated_value,
+					$function_call,
+					$quoted_implicit_default
+				);
+			default:
+				// For all other data types, use SQLite-native CAST expression.
+				$mysql_data_type = strtolower( $mysql_data_type );
+				return sprintf( 'CAST(%s AS %s)', $translated_value, $sqlite_data_type );
+		}
 	}
 
 	/**
