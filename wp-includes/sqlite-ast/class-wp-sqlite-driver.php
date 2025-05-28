@@ -2973,7 +2973,25 @@ class WP_SQLite_Driver {
 			}
 		}
 
-		// 3. Get the list of column names returned by VALUES or SELECT clause.
+		// 3. Filter out omitted columns that will get a value from the SQLite engine.
+		//    That is, nullable columns, columns with defaults, and generated columns.
+		$columns = array_values(
+			array_filter(
+				$columns,
+				function ( $column ) use ( $insert_list ) {
+					$is_omitted = ! in_array( $column['COLUMN_NAME'], $insert_list, true );
+					if ( ! $is_omitted ) {
+						return true;
+					}
+					$is_nullable  = 'YES' === $column['IS_NULLABLE'];
+					$has_default  = $column['COLUMN_DEFAULT'];
+					$is_generated = str_contains( $column['EXTRA'], 'auto_increment' );
+					return ! ( $is_nullable || $has_default || $is_generated );
+				}
+			)
+		);
+
+		// 4. Get the list of column names returned by VALUES or SELECT clause.
 		$select_list = array();
 		if ( 'insertQueryExpression' === $node->rule_name ) {
 			// When inserting from a SELECT query, we don't know the column names.
@@ -2994,7 +3012,7 @@ class WP_SQLite_Driver {
 			}
 		}
 
-		// 4. Compose a new INSERT field list with all columns from the table.
+		// 5. Compose a new INSERT field list with all columns from the table.
 		$fragment = '(';
 		foreach ( $columns as $i => $column ) {
 			$fragment .= $i > 0 ? ', ' : '';
@@ -3002,20 +3020,19 @@ class WP_SQLite_Driver {
 		}
 		$fragment .= ')';
 
-		// 5. Compose a wrapper SELECT statement emulating IMPLICIT DEFAULT values.
+		// 6. Compose a wrapper SELECT statement emulating IMPLICIT DEFAULT values.
 		$fragment .= ' SELECT ';
 		foreach ( $columns as $i => $column ) {
 			$is_omitted = ! in_array( $column['COLUMN_NAME'], $insert_list, true );
 			$fragment  .= $i > 0 ? ', ' : '';
 			if ( $is_omitted ) {
-				// When a column value is omitted from the INSERT statement, we
-				// need to use the DEFAULT value or the IMPLICIT DEFAULT value.
-				$is_auto_inc = str_contains( $column['EXTRA'], 'auto_increment' );
-				$is_nullable = 'YES' === $column['IS_NULLABLE'];
-				$default     = $column['COLUMN_DEFAULT'];
-				if ( null === $default && ! $is_nullable && ! $is_auto_inc ) {
-					$default = self::DATA_TYPE_IMPLICIT_DEFAULT_MAP[ $column['DATA_TYPE'] ] ?? null;
-				}
+				/*
+				 * When a column is omitted from the INSERT list, we need to use
+				 * an IMPLICIT DEFAULT value. Note that at this point, all omitted
+				 * columns that will not get an implicit default are filtered out.
+				 * (That is, nullable, generated, and columns with true defaults.)
+				 */
+				$default   = self::DATA_TYPE_IMPLICIT_DEFAULT_MAP[ $column['DATA_TYPE'] ] ?? null;
 				$fragment .= null === $default ? 'NULL' : $this->connection->quote( $default );
 			} else {
 				// When a column value is included, we need to apply type casting.

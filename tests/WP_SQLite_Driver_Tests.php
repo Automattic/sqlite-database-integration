@@ -4379,6 +4379,40 @@ QUERY
 		$this->assertSame( '', $result[0]->value );
 	}
 
+	public function testNonStrictModeWithDefaultCurrentTimestamp(): void {
+		$this->assertQuery( "SET SESSION sql_mode = ''" );
+		$this->assertQuery( 'CREATE TABLE t (id INT, value TIMESTAMP DEFAULT CURRENT_TIMESTAMP)' );
+
+		// INSERT without a value saves CURRENT_TIMESTAMP:
+		$this->assertQuery( 'INSERT INTO t (id) VALUES (1)' );
+		$result = $this->assertQuery( 'SELECT * FROM t' );
+		$this->assertCount( 1, $result );
+		$this->assertRegExp( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $result[0]->value );
+
+		// UPDATE with NULL saves NULL:
+		$this->assertQuery( 'UPDATE t SET value = NULL' );
+		$result = $this->assertQuery( 'SELECT * FROM t' );
+		$this->assertCount( 1, $result );
+		$this->assertNull( $result[0]->value );
+	}
+
+	public function testNonStrictModeWithDefaultCurrentTimestampNotNull(): void {
+		$this->assertQuery( "SET SESSION sql_mode = ''" );
+		$this->assertQuery( 'CREATE TABLE t (id INT, value TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)' );
+
+		// INSERT without a value saves CURRENT_TIMESTAMP:
+		$this->assertQuery( 'INSERT INTO t (id) VALUES (1)' );
+		$result = $this->assertQuery( 'SELECT * FROM t' );
+		$this->assertCount( 1, $result );
+		$this->assertRegExp( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $result[0]->value );
+
+		// UPDATE with NULL saves IMPLICIT DEFAULT:
+		$this->assertQuery( 'UPDATE t SET value = NULL' );
+		$result = $this->assertQuery( 'SELECT * FROM t' );
+		$this->assertCount( 1, $result );
+		$this->assertSame( '0000-00-00 00:00:00', $result[0]->value );
+	}
+
 	public function testNonStrictSqlModeWithNoListedColumns(): void {
 		$this->assertQuery( "SET SESSION sql_mode = ''" );
 
