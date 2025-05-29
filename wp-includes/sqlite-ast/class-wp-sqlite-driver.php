@@ -3165,6 +3165,20 @@ class WP_SQLite_Driver {
 			case 'datetime':
 			case 'timestamp':
 			case 'year':
+				/*
+				 * MySQL supports date and time components without a zero padding,
+				 * but that doesn't work with date and time functions in SQLite.
+				 * E.g.: "2025-3-7 9:5:2" is a valid datetime/timestamp value in
+				 * in MySQL, but SQLite requires it to be "2025-03-07 09:05:02".
+				 *
+				 * A solution to this would need to be done on the SQL level to
+				 * address computed values, and it should be done for the strict
+				 * mode as well. This may require a user-defined function.
+				 *
+				 * TODO: Handle zero padding for date and time functions, while
+				 *       supporting both strict and non-strict modes.
+				 */
+
 				if ( 'date' === $mysql_data_type ) {
 					$function_call = sprintf( 'DATE(%s)', $translated_value );
 				} elseif ( 'time' === $mysql_data_type ) {
