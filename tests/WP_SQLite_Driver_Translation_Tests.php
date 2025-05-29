@@ -1110,7 +1110,7 @@ class WP_SQLite_Driver_Translation_Tests extends TestCase {
 
 	public function testBinaryDataTypes(): void {
 		$this->assertQuery(
-			'CREATE TABLE `t` ( `b` INTEGER, `v` BLOB ) STRICT',
+			'CREATE TABLE `t` ( `b` BLOB, `v` BLOB ) STRICT',
 			'CREATE TABLE t (b BINARY, v VARBINARY(255))'
 		);
 

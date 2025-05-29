@@ -4622,9 +4622,9 @@ QUERY
 		$this->assertSame( '', $result[0]->col_text );
 		$this->assertSame( '0', $result[0]->col_bool );
 		$this->assertSame( '0', $result[0]->col_bit );
-		$this->assertSame( '0', $result[0]->col_binary ); // TODO: Should save ''.
-		$this->assertSame( '', $result[0]->col_varbinary );
-		$this->assertSame( '', $result[0]->col_blob );
+		$this->assertSame( PHP_VERSION_ID < 80100 ? null : '', $result[0]->col_binary );
+		$this->assertSame( PHP_VERSION_ID < 80100 ? null : '', $result[0]->col_varbinary );
+		$this->assertSame( PHP_VERSION_ID < 80100 ? null : '', $result[0]->col_blob );
 		$this->assertSame( '0000-00-00', $result[0]->col_date );
 		$this->assertSame( '00:00:00', $result[0]->col_time );
 		$this->assertSame( '0000-00-00 00:00:00', $result[0]->col_datetime );
@@ -4671,9 +4671,9 @@ QUERY
 		$this->assertSame( '', $result[0]->col_text );
 		$this->assertSame( '0', $result[0]->col_bool );
 		$this->assertSame( '0', $result[0]->col_bit );
-		$this->assertSame( '0', $result[0]->col_binary ); // TODO: Should save ''.
-		$this->assertSame( '', $result[0]->col_varbinary );
-		$this->assertSame( '', $result[0]->col_blob );
+		$this->assertSame( PHP_VERSION_ID < 80100 ? null : '', $result[0]->col_binary );
+		$this->assertSame( PHP_VERSION_ID < 80100 ? null : '', $result[0]->col_varbinary );
+		$this->assertSame( PHP_VERSION_ID < 80100 ? null : '', $result[0]->col_blob );
 		$this->assertSame( '0000-00-00', $result[0]->col_date );
 		$this->assertSame( '00:00:00', $result[0]->col_time );
 		$this->assertSame( '0000-00-00 00:00:00', $result[0]->col_datetime );

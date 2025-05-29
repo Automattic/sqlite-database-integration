@@ -94,7 +94,7 @@ class WP_SQLite_Driver {
 		WP_MySQL_Lexer::YEAR_SYMBOL               => 'TEXT',
 
 		// Binary data types:
-		WP_MySQL_Lexer::BINARY_SYMBOL             => 'INTEGER',
+		WP_MySQL_Lexer::BINARY_SYMBOL             => 'BLOB',
 		WP_MySQL_Lexer::VARBINARY_SYMBOL          => 'BLOB',
 		WP_MySQL_Lexer::TINYBLOB_SYMBOL           => 'BLOB',
 		WP_MySQL_Lexer::BLOB_SYMBOL               => 'BLOB',
@@ -162,7 +162,7 @@ class WP_SQLite_Driver {
 		'year'               => 'TEXT',
 
 		// Binary data types:
-		'binary'             => 'INTEGER',
+		'binary'             => 'BLOB',
 		'varbinary'          => 'BLOB',
 		'tinyblob'           => 'BLOB',
 		'blob'               => 'BLOB',
