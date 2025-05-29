@@ -735,7 +735,31 @@ class WP_SQLite_Driver {
 	 */
 	public function begin_transaction(): void {
 		if ( 0 === $this->transaction_level ) {
-			$this->execute_sqlite_query( 'BEGIN' );
+			/*
+			 * When we're executing a statement that will write to the database,
+			 * we need to use "BEGIN IMMEDIATE" to open a write transaction.
+			 *
+			 * This is needed to avoid the "database is locked" error (SQLITE_BUSY)
+			 * when SQLite can't upgrade a read transaction to a write transaction,
+			 * because another connection is modifying the database.
+			 *
+			 * From the SQLite documentation:
+			 *
+			 *   If a write statement occurs while a read transaction is active,
+			 *   then the read transaction is upgraded to a write transaction if
+			 *   possible. If some other database connection has already modified
+			 *   the database or is already in the process of modifying the database,
+			 *   then upgrading to a write transaction is not possible and the write
+			 *   statement will fail with SQLITE_BUSY.
+			 *
+			 * See:
+			 *   - https://www.sqlite.org/lang_transaction.html
+			 *   - https://www.sqlite.org/rescode.html#busy
+			 *
+			 * For better performance, we could also consider opening the write
+			 * transaction later in the session - just before the first write.
+			 */
+			$this->execute_sqlite_query( $this->is_readonly ? 'BEGIN' : 'BEGIN IMMEDIATE' );
 		} else {
 			$this->execute_sqlite_query( 'SAVEPOINT LEVEL' . $this->transaction_level );
 		}
