@@ -3285,6 +3285,10 @@ class WP_SQLite_Driver {
 			 *     PRIMARY KEY without AUTOINCREMENT (to avoid the ROWID alias).
 			 *  2. Use "INTEGER PRIMARY KEY" otherwise.
 			 *
+			 * In SQLite, "AUTOINCREMENT" is only allowed on "INTEGER PRIMARY KEY",
+			 * and setting it changes the automatic ROWID assignment algorithm to
+			 * prevent the reuse of ROWIDs. Using "INT PRIMARY KEY" is not allowed.
+			 *
 			 * See:
 			 *   - https://www.sqlite.org/autoinc.html
 			 *   - https://www.sqlite.org/lang_createtable.html
