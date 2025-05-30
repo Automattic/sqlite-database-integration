@@ -745,12 +745,27 @@ class WP_SQLite_Driver {
 			 *
 			 * From the SQLite documentation:
 			 *
+			 *   ## Read transactions versus write transactions
+			 *
 			 *   If a write statement occurs while a read transaction is active,
 			 *   then the read transaction is upgraded to a write transaction if
 			 *   possible. If some other database connection has already modified
 			 *   the database or is already in the process of modifying the database,
 			 *   then upgrading to a write transaction is not possible and the write
 			 *   statement will fail with SQLITE_BUSY.
+			 *
+			 *   ## DEFERRED, IMMEDIATE, and EXCLUSIVE transactions
+			 *
+			 *   Transactions can be DEFERRED, IMMEDIATE, or EXCLUSIVE. The default
+			 *   transaction behavior is DEFERRED.
+			 *
+			 *   DEFERRED means that the transaction does not actually start until
+			 *   the database is first accessed.
+			 *
+			 *   IMMEDIATE causes the database connection to start a new write
+			 *   immediately, without waiting for a write statement. The BEGIN
+			 *   IMMEDIATE might fail with SQLITE_BUSY if another write transaction
+			 *   is already active on another database connection.
 			 *
 			 * See:
 			 *   - https://www.sqlite.org/lang_transaction.html
