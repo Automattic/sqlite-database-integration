@@ -3787,6 +3787,53 @@ QUERY
 		"
 		);
 
+		$result = $this->assertQuery( 'DESCRIBE t' );
+		$this->assertEquals(
+			array(
+				(object) array(
+					'Field'   => 'name',
+					'Type'    => 'varchar(255)',
+					'Null'    => 'YES',
+					'Key'     => '',
+					'Default' => 'CURRENT_TIMESTAMP',
+					'Extra'   => '',
+				),
+				(object) array(
+					'Field'   => 'type',
+					'Type'    => 'varchar(255)',
+					'Null'    => 'NO',
+					'Key'     => '',
+					'Default' => 'DEFAULT',
+					'Extra'   => '',
+				),
+				(object) array(
+					'Field'   => 'description',
+					'Type'    => 'varchar(250)',
+					'Null'    => 'NO',
+					'Key'     => '',
+					'Default' => '',
+					'Extra'   => '',
+				),
+				(object) array(
+					'Field'   => 'created_at',
+					'Type'    => 'timestamp',
+					'Null'    => 'YES',
+					'Key'     => '',
+					'Default' => 'CURRENT_TIMESTAMP',
+					'Extra'   => 'DEFAULT_GENERATED',
+				),
+				(object) array(
+					'Field'   => 'updated_at',
+					'Type'    => 'timestamp',
+					'Null'    => 'NO',
+					'Key'     => '',
+					'Default' => 'CURRENT_TIMESTAMP',
+					'Extra'   => 'DEFAULT_GENERATED on update CURRENT_TIMESTAMP',
+				),
+			),
+			$result
+		);
+
 		$result = $this->assertQuery( 'SHOW CREATE TABLE t' );
 		$this->assertEquals(
 			"CREATE TABLE `t` (\n"

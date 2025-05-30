@@ -1440,20 +1440,28 @@ class WP_SQLite_Information_Schema_Builder {
 			return 'auto_increment';
 		}
 
-		// Check whether DEFAULT value is an expression.
+		// AUTO_INCREMENT columns can't have a DEFAULT value.
+		foreach ( $attributes as $attr ) {
+			if ( $attr->has_child_token( WP_MySQL_Lexer::AUTO_INCREMENT_SYMBOL ) ) {
+				return 'auto_increment';
+			}
+		}
+
+		// Check whether DEFAULT value is generated.
 		foreach ( $attributes as $attr ) {
 			if (
 				$attr->has_child_token( WP_MySQL_Lexer::DEFAULT_SYMBOL )
-				&& $attr->has_child_node( 'exprWithParentheses' )
+				&& (
+					$attr->has_child_node( 'exprWithParentheses' )
+					|| $attr->has_child_token( WP_MySQL_Lexer::NOW_SYMBOL )
+				)
 			) {
 				$extras[] = 'DEFAULT_GENERATED';
 			}
 		}
 
+		// Check for ON UPDATE CURRENT_TIMESTAMP.
 		foreach ( $attributes as $attr ) {
-			if ( $attr->has_child_token( WP_MySQL_Lexer::AUTO_INCREMENT_SYMBOL ) ) {
-				return 'auto_increment';
-			}
 			if (
 				$attr->has_child_token( WP_MySQL_Lexer::ON_SYMBOL )
 				&& $attr->has_child_token( WP_MySQL_Lexer::UPDATE_SYMBOL )
@@ -1462,6 +1470,7 @@ class WP_SQLite_Information_Schema_Builder {
 			}
 		}
 
+		// Check for generated columns.
 		if ( $node->get_first_descendant_token( WP_MySQL_Lexer::VIRTUAL_SYMBOL ) ) {
 			$extras[] = 'VIRTUAL GENERATED';
 		} elseif ( $node->get_first_descendant_token( WP_MySQL_Lexer::STORED_SYMBOL ) ) {
