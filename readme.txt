@@ -1,3 +1,9 @@
+=================================
+THIS REPOSITORY HAS BEEN ARCHIVED
+=================================
+
+All changes from this repository were merged into https://github.com/WordPress/sqlite-database-integration/.
+
 === SQLite Database Integration ===
 
 Contributors:      wordpressdotorg, aristath, janjakes, zieladam, berislav.grgicak, bpayton, zaerl
